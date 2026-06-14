@@ -1,0 +1,53 @@
+# RTSP NVR Dashboard - Docker Compose
+# Managed by install.sh - do not edit manually
+
+services:
+  backend:
+    build: ./backend
+    container_name: rtsp-nvr-backend
+    env_file: ./.env
+    ports:
+      - "${HOST_IP:-0.0.0.0}:5000:5000"
+    volumes:
+      - ./backend:/app
+      - ./recordings:/recordings
+      - ./events:/events
+    restart: unless-stopped
+    networks:
+      - nvr-network
+    environment:
+      - FLASK_ENV=production
+      - FLASK_RUN_PORT=5000
+
+  frontend:
+    build: ./frontend
+    container_name: rtsp-nvr-frontend
+    env_file: ./.env
+    ports:
+      - "${HOST_IP:-0.0.0.0}:3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - nvr-network
+    environment:
+      - REACT_APP_API_URL=http://backend:5000
+
+  ffmpeg:
+    build: ./ffmpeg
+    container_name: rtsp-nvr-ffmpeg
+    env_file: ./.env
+    volumes:
+      - ./recordings:/recordings
+      - /dev/video0:/dev/video0
+    restart: unless-stopped
+    networks:
+      - nvr-network
+    environment:
+      - RTSP_URL=${NVR_URL:-rtsp://admin:admin@192.168.1.1:554/stream}
+    cap_add:
+      - SYS_ADMIN
+
+networks:
+  nvr-network:
+    driver: bridge

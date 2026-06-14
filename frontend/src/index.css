@@ -1,0 +1,60 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a2e 100%);
+  color: #e0e0e0;
+  min-height: 100vh;
+}
+
+/* Cyber theme colors */
+:root {
+  --primary: #00ff88;
+  --secondary: #00ccff;
+  --accent: #ff00ff;
+  --dark: #0a0a0a;
+  --darker: #050505;
+  --light: #e0e0e0;
+  --border: #1a1a1a;
+  --success: #00ff88;
+  --warning: #ffaa00;
+  --error: #ff4444;
+}
+
+.cyber-border {
+  border: 1px solid var(--primary);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+}
+
+.cyber-text {
+  color: var(--primary);
+  text-shadow: 0 0 5px rgba(0, 255, 136, 0.3);
+}
+
+/* CRT scanline effect */
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    rgba(0, 0, 0, 0.1),
+    rgba(0, 0, 0, 0.1) 1px,
+    rgba(0, 0, 0, 0.05) 1px,
+    rgba(0, 0, 0, 0.05) 2px
+  );
+  pointer-events: none;
+  z-index: 9999;
+}
+
+/* Glowing text */
+.glow {
+  text-shadow: 0 0 10px var(--primary), 0 0 20px var(--primary);
+}
