@@ -1,146 +1,138 @@
-#!/usr/bin/env bash
-#=====================================================================
-#  RTSP NVR Dashboard - Complete Installer for Ubuntu
-#  Builds and deploys the complete dashboard stack
-#=====================================================================
-#  What the script does
-#   1️⃣  Install APT prerequisites
-#   2️⃣  Install Docker and Docker Compose
-#   3️⃣  Clone/update the dashboard repo
-#   4️⃣  Create .env configuration
-#   5️⃣  Build all Docker images
-#   6️⃣  Start the complete stack
-#=====================================================================
+#!/bin/bash
 
-set -euo pipefail
-IFS=$'\n\t'
+# ============================================
+# RTSP NVR Dashboard - Installer Script
+# ============================================
+# This script installs all dependencies and sets up the RTSP NVR Dashboard
+# Supports Ubuntu 20.04/22.04, Debian 11+
+# ============================================
 
-# ---------- Helper output ----------
-log()   { echo -e "\033[1;33m📦\033[0m  $*"; }
-ok()    { echo -e "\033[1;32m✅\033[0m  $*"; }
-warn()  { echo -e "\033[1;31m⚠️\033[0m  $*"; }
-info()  { echo -e "\033[1;34mℹ️\033[0m  $*"; }
+set -e
 
-# ---------- 1 – Detect Ubuntu / Debian codename ----------
-log "Detecting distribution..."
-if command -v lsb_release >/dev/null 2>&1; then
-    UBUNTU_CODENAME=$(lsb_release -cs)
-else
-    . /etc/os-release
-    UBUNTU_CODENAME=$VERSION_CODENAME
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Logging
+LOG() {
+    echo -e "${BLUE}[INFO]${NC} $1"
+}
+
+SUCCESS() {
+    echo -e "${GREEN}[SUCCESS]${NC} $1"
+}
+
+WARNING() {
+    echo -e "${YELLOW}[WARNING]${NC} $1"
+}
+
+ERROR() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# Check for sudo privileges
+if [ "$EUID" -ne 0 ]; then
+    ERROR "This script must be run as root"
+    exit 1
 fi
 
-if [[ "$UBUNTU_CODENAME" == "noble" ]]; then
-    warn "Running on Ubuntu 'noble' (development). Switching apt sources to jammy."
-    UBUNTU_CODENAME="jammy"
-fi
-log "Using apt codename: $UBUNTU_CODENAME"
+LOG "Starting RTSP NVR Dashboard installation..."
+LOG "=========================================="
 
-# ---------- 2 – Install APT prerequisites ----------
-log "Updating APT index..."
-apt-get -o Acquire::ForceIPv4=true update -y
+# ===== STEP 1: Update system =====
+LOG "Step 1/8: Updating system packages..."
+apt-get update
+apt-get install -y apt-transport-https ca-certificates curl software-properties-common
 
-log "Installing required packages..."
-apt-get -o Acquire::ForceIPv4=true install -y \
-    ca-certificates curl gnupg lsb-release software-properties-common git build-essential
+# ===== STEP 2: Install Docker =====
+LOG "Step 2/8: Installing Docker..."
+curl -fsSL https://get.docker.com -sS | sh
+usermod -aG docker $USER
+systemctl enable docker
+systemctl start docker
 
-# ---------- 3 – Docker Engine ----------
-log "Setting up Docker repository..."
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
-    gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+# ===== STEP 3: Install Docker Compose =====
+LOG "Step 3/8: Installing Docker Compose..."
+curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
+    -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
 
-echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable" | \
-    tee /etc/apt/sources.list.d/docker.list > /dev/null
+# ===== STEP 4: Install FFmpeg =====
+LOG "Step 4/8: Installing FFmpeg..."
+apt-get install -y ffmpeg
 
-log "Installing Docker Engine..."
-apt-get -o Acquire::ForceIPv4=true update -y
-apt-get -o Acquire::ForceIPv4=true install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
-systemctl enable --now docker
+# ===== STEP 5: Install Git =====
+LOG "Step 5/8: Installing Git..."
+apt-get install -y git
 
-# ---------- 4 – Clone / update the dashboard ----------
-TARGET_DIR="/opt/rtsp-nvr-dashboard"
-log "Preparing $TARGET_DIR"
+# ===== STEP 6: Clone repository =====
+LOG "Step 6/8: Cloning repository..."
+cd /opt
+git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git
+cd rtsp-nvr-dashboard
 
-if [[ -d "$TARGET_DIR/.git" ]]; then
-    ok "Repository already exists → pulling the latest"
-    pushd "$TARGET_DIR" > /dev/null
-    git fetch --all
-    git reset --hard origin/main
-    popd > /dev/null
-else
-    ok "Cloning fresh copy of the dashboard"
-    git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git "$TARGET_DIR"
-fi
+# ===== STEP 7: Setup environment =====
+LOG "Step 7/8: Setting up environment..."
 
-# ---------- 5 – Create .env ----------
-cd "$TARGET_DIR"
+# Create .env from sample
+cp .env.sample .env
 
-if [[ -f .env ]]; then
-    ok ".env already exists – leaving untouched."
-elif [[ -f .env.sample ]]; then
-    cp .env.sample .env
-    ok "Copied .env.sample → .env"
-else
-    info "Creating minimal .env..."
-    cat > .env <<EOF
-# RTSP NVR Dashboard Configuration
-HOST_IP=0.0.0.0
-NVR_URL=rtsp://admin:admin@192.168.1.10:554/stream
-ADMIN_USER=admin
-ADMIN_PASSWORD=your_password_here
-AUDIO_THRESHOLD_DB=30
-RECORDING_RETENTION_DAYS=7
-MAX_RECORDINGS=10
-EOF
-    ok ".env file created."
-fi
+# Edit .env with nano (or ask user to edit manually)
+echo ""
+echo -e "${YELLOW}Please configure your RTSP stream URL and other settings:${NC}"
+echo -e "${YELLOW}   nano /opt/rtsp-nvr-dashboard/.env${NC}"
+echo ""
+read -p "Press Enter when done editing, or skip to continue..."
 
-info "Please edit .env with your RTSP URL and settings (Ctrl+X to keep)"
-if command -v nano >/dev/null 2>&1; then
-    nano .env
-else
-    ${EDITOR:-vi} .env
-fi
+# ===== STEP 8: Build and start =====
+LOG "Step 8/8: Building and starting services..."
 
-# ---------- 6 – Build Docker images ----------
-log "Building Docker images..."
+# Build images
+docker compose build
 
-# Build backend
-log "Building backend image..."
-docker compose -f docker-compose.yml build backend
+# Start services
+docker compose up -d
 
-# Build frontend
-log "Building frontend image..."
-docker compose -f docker-compose.yml build frontend
-
-# Build FFmpeg
-log "Building FFmpeg processor image..."
-docker compose -f docker-compose.yml build ffmpeg
-
-ok "All images built successfully."
-
-# ---------- 7 – Start the stack ----------
-log "Starting the RTSP NVR Dashboard..."
-docker compose -f docker-compose.yml up -d
-
-# ---------- 8 – Final status ----------
-log "Waiting for containers to initialize..."
+# Check status
 sleep 5
+docker compose ps
 
-log "Current container status:"
-docker compose -f docker-compose.yml ps
+echo ""
+SUCCESS "Installation complete!"
+echo ""
+echo -e "${GREEN}Services:${NC}"
+echo -e "  Frontend:  http://localhost:3000"
+echo -e "  Backend:   http://localhost:5000"
+echo -e "  FFmpeg:    localhost:8889"
+echo ""
+echo -e "${YELLOW}Default credentials:${NC}"
+echo -e "  Username: admin"
+echo -e "  Password: admin"
+echo ""
+echo -e "${BLUE}Next steps:${NC}"
+echo -e "  1. Configure /opt/rtsp-nvr-dashboard/.env with your RTSP URL"
+echo -e "  2. View logs: docker compose logs -f"
+echo -e "  3. Stop services: docker compose down"
+echo ""
 
-# ---------- 9 – Summary ----------
-ok "=============================================================="
-ok "✅  RTSP NVR Dashboard installation complete!"
-ok "=============================================================="
-ok ""
-ok "🌐 Access the dashboard at:   http://0.0.0.0:3000"
-ok "🔑 Default credentials:      admin / (set in .env)"
-ok ""
-ok "📋 Useful commands:"
-ok "   View logs:   docker compose -f docker-compose.yml logs -f"
-ok "   Stop:        docker compose -f docker-compose.yml down"
-ok "   Restart:     docker compose -f docker-compose.yml restart"
-ok "=============================================================="
+# ===== OPTIONAL: Tailscale Setup =====
+if command -v docker &> /dev/null; then
+    LOG "Tailscale setup (optional):"
+    LOG "  1. Install Tailscale: sudo apt install tailscale"
+    LOG "  2. Login: sudo tailscale up"
+    LOG "  3. Access dashboard via Tailscale IP: http://<tailscale-ip>:3000"
+    echo ""
+fi
+
+# ===== ADD USER TO DOCKER GROUP =====
+echo -e "${YELLOW}Adding user to docker group for local access:${NC}"
+read -p "Username? " username
+usermod -aG docker $username
+echo -e "${GREEN}Done!${NC}"
+
+echo ""
+SUCCESS "RTSP NVR Dashboard is now running!"
+echo ""

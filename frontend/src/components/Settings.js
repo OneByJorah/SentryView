@@ -1,182 +1,249 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 
-function Settings() {
-  const [threshold, setThreshold] = useState(30);
-  const [retentionDays, setRetentionDays] = useState(7);
-  const [maxRecordings, setMaxRecordings] = useState(10);
-  const [alert, setAlert] = useState(null);
-  const [scheduledRecordings, setScheduledRecordings] = useState([]);
+const Settings = () => {
+  const [activeTab, setActiveTab] = useState('general');
+  const [config, setConfig] = useState({
+    audioThreshold: 70,
+    retentionDays: 7,
+    username: '',
+    password: '',
+    tailscaleApiKey: '',
+    tailscaleTailnetId: ''
+  });
+  const [streams, setStreams] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-  const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-  const updateThreshold = async () => {
+  // ===== LOAD SETTINGS =====
+  const loadSettings = async () => {
     try {
-      await axios.put(`${API_URL}/api/audio/threshold`, { threshold });
-      setAlert({ type: 'success', message: 'Threshold updated!' });
-      setTimeout(() => setAlert(null), 3000);
+      // Load from environment
+      const audioThreshold = parseFloat(process.env.REACT_APP_AUDIO_THRESHOLD_DB) || 70;
+      const retentionDays = parseInt(process.env.REACT_APP_RETENTION_DAYS) || 7;
+      
+      setConfig(prev => ({ ...prev, audioThreshold, retentionDays }));
     } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to update threshold' });
-      setTimeout(() => setAlert(null), 3000);
+      console.error('Failed to load settings:', error);
     }
   };
 
   useEffect(() => {
-    fetchSettings();
-    fetchScheduledRecordings();
+    loadSettings();
+    fetchStreams();
   }, []);
 
-  const fetchSettings = async () => {
+  // ===== FETCH STREAMS =====
+  const fetchStreams = async () => {
     try {
-      const response = await fetch(`${API_URL}/api/audio/threshold`);
-      const data = await response.json();
-      setThreshold(data.threshold_db);
-    } catch (error) {
-      console.error('Failed to fetch settings:', error);
-    }
-  };
-
-  const fetchScheduledRecordings = async () => {
-    try {
-      const response = await fetch(`${API_URL}/api/schedule`);
-      const data = await response.json();
-      setScheduledRecordings(data.schedule);
-    } catch (error) {
-      console.error('Failed to fetch schedule:', error);
-    }
-  };
-
-  const addScheduledRecording = async () => {
-    const date = prompt('Enter date (YYYY-MM-DD HH:MM):');
-    if (!date) return;
-
-    const time = prompt('Enter time (HH:MM):');
-    if (!time) return;
-
-    try {
-      const response = await axios.post(`${API_URL}/api/schedule`, {
-        date,
-        time,
-        description: 'Scheduled recording'
+      const token = localStorage.getItem('access_token');
+      const response = await fetch('/api/streams', {
+        headers: { Authorization: `Bearer ${token}` }
       });
-      setAlert({ type: 'success', message: 'Scheduled recording added!' });
-      setTimeout(() => setAlert(null), 3000);
-      fetchScheduledRecordings();
+      const data = await response.json();
+      setStreams(data.streams);
     } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to add scheduled recording' });
-      setTimeout(() => setAlert(null), 3000);
+      console.error('Failed to fetch streams:', error);
     }
   };
 
-  const deleteScheduledRecording = async (id) => {
+  // ===== SAVE SETTINGS =====
+  const saveSettings = async () => {
+    setLoading(true);
     try {
-      await axios.delete(`${API_URL}/api/schedule`, { data: { id } });
-      setAlert({ type: 'success', message: 'Scheduled recording deleted!' });
-      setTimeout(() => setAlert(null), 3000);
-      fetchScheduledRecordings();
+      // Save to environment file (requires restart)
+      const fs = require('fs');
+      const path = require('path');
+      
+      const envPath = path.resolve(__dirname, '../../../.env');
+      const envContent = `
+AUDIO_THRESHOLD_DB=${config.audioThreshold}
+RETENTION_DAYS=${config.retentionDays}
+TAILSCALE_API_KEY=${config.tailscaleApiKey}
+TAILSCALE_TAILNET_ID=${config.tailscaleTailnetId}
+      `;
+      
+      fs.writeFileSync(envPath, envContent);
+      
+      alert('Settings saved! Please restart the backend for changes to take effect.');
     } catch (error) {
-      setAlert({ type: 'error', message: 'Failed to delete scheduled recording' });
-      setTimeout(() => setAlert(null), 3000);
+      console.error('Failed to save settings:', error);
+      alert('Failed to save settings. Please edit .env file manually.');
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
-    <div className="container">
-      {alert && (
-        <div className={`alert alert-${alert.type}`}>
-          {alert.message}
+    <div className="settings">
+      <h2>⚙️ Settings</h2>
+
+      {/* ===== TABS ===== */}
+      <div className="settings-tabs">
+        <button 
+          className={`tab ${activeTab === 'general' ? 'active' : ''}`}
+          onClick={() => setActiveTab('general')}
+        >
+          General
+        </button>
+        <button 
+          className={`tab ${activeTab === 'recording' ? 'active' : ''}`}
+          onClick={() => setActiveTab('recording')}
+        >
+          Recording
+        </button>
+        <button 
+          className={`tab ${activeTab === 'tailscale' ? 'active' : ''}`}
+          onClick={() => setActiveTab('tailscale')}
+        >
+          Tailscale
+        </button>
+        <button 
+          className={`tab ${activeTab === 'security' ? 'active' : ''}`}
+          onClick={() => setActiveTab('security')}
+        >
+          Security
+        </button>
+      </div>
+
+      {/* ===== GENERAL TAB ===== */}
+      {activeTab === 'general' && (
+        <div className="settings-panel">
+          <h3>General Settings</h3>
+          <div className="form-group">
+            <label>System Name</label>
+            <input type="text" defaultValue="RTSP NVR Dashboard" />
+          </div>
+          <div className="form-group">
+            <label>Default Language</label>
+            <select>
+              <option>English</option>
+              <option>Spanish</option>
+              <option>French</option>
+            </select>
+          </div>
         </div>
       )}
 
-      <h1>⚙️ Settings</h1>
+      {/* ===== RECORDING TAB ===== */}
+      {activeTab === 'recording' && (
+        <div className="settings-panel">
+          <h3>Recording Settings</h3>
+          
+          <div className="form-group">
+            <label>Audio Threshold (dB)</label>
+            <input
+              type="number"
+              value={config.audioThreshold}
+              onChange={(e) => setConfig(prev => ({ ...prev, audioThreshold: e.target.value }))}
+              min="0"
+              max="150"
+            />
+            <p>Recording starts when audio exceeds {config.audioThreshold}dB</p>
+          </div>
 
-      <div className="card" style={{ marginTop: '2rem' }}>
-        <h3>Audio Detection</h3>
-        <div className="form-group">
-          <label className="form-label">
-            Volume Threshold (dB): {threshold}
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="100"
-            value={threshold}
-            onChange={(e) => setThreshold(Number(e.target.value))}
-            style={{ width: '100%' }}
-          />
-          <p style={{ fontSize: '0.8rem', color: '#888', marginTop: '0.5rem' }}>
-            Events will trigger when volume exceeds {threshold} dB
-          </p>
+          <div className="form-group">
+            <label>Retention Days</label>
+            <input
+              type="number"
+              value={config.retentionDays}
+              onChange={(e) => setConfig(prev => ({ ...prev, retentionDays: e.target.value }))}
+              min="1"
+              max="365"
+            />
+            <p>Keep recordings for {config.retentionDays} days</p>
+          </div>
+
+          <div className="form-group">
+            <label>Auto-Cleanup</label>
+            <select>
+              <option value="daily">Daily at 2 AM</option>
+              <option value="weekly">Weekly on Sunday</option>
+              <option value="never">Never</option>
+            </select>
+          </div>
         </div>
-        <button className="cyber-button" onClick={updateThreshold}>
-          Save Changes
+      )}
+
+      {/* ===== TAILSCALE TAB ===== */}
+      {activeTab === 'tailscale' && (
+        <div className="settings-panel">
+          <h3>Tailscale Configuration</h3>
+          <p>Use Tailscale for secure remote access to your dashboard.</p>
+          
+          <div className="form-group">
+            <label>Tailscale API Key</label>
+            <textarea
+              value={config.tailscaleApiKey}
+              onChange={(e) => setConfig(prev => ({ ...prev, tailscaleApiKey: e.target.value }))}
+              placeholder="tskey-..."
+              rows="3"
+            />
+            <p className="help-text">
+              Get your API key from: <a href="https://tailscale.com/admin/cloudapi" target="_blank">Tailscale Admin Console</a>
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label>Tailnet ID</label>
+            <input
+              type="text"
+              value={config.tailscaleTailnetId}
+              onChange={(e) => setConfig(prev => ({ ...prev, tailscaleTailnetId: e.target.value }))}
+              placeholder="example.tailnet"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Enable Tailscale Access</label>
+            <select>
+              <option value="true">Enable</option>
+              <option value="false">Disable</option>
+            </select>
+          </div>
+
+          <button onClick={saveSettings} className="btn btn-primary" disabled={loading}>
+            {loading ? 'Saving...' : 'Save Tailscale Config'}
+          </button>
+        </div>
+      )}
+
+      {/* ===== SECURITY TAB ===== */}
+      {activeTab === 'security' && (
+        <div className="settings-panel">
+          <h3>Security Settings</h3>
+          
+          <div className="form-group">
+            <label>Change Password</label>
+            <input
+              type="password"
+              placeholder="New password"
+              value={config.password}
+              onChange={(e) => setConfig(prev => ({ ...prev, password: e.target.value }))}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Username</label>
+            <input
+              type="text"
+              value={config.username}
+              onChange={(e) => setConfig(prev => ({ ...prev, username: e.target.value }))}
+            />
+          </div>
+
+          <button onClick={saveSettings} className="btn btn-primary" disabled={loading}>
+            {loading ? 'Saving...' : 'Update Credentials'}
+          </button>
+        </div>
+      )}
+
+      {/* ===== SAVE BUTTON ===== */}
+      <div className="settings-footer">
+        <button onClick={saveSettings} className="btn btn-primary" disabled={loading}>
+          {loading ? 'Saving...' : 'Save All Settings'}
         </button>
-      </div>
-
-      <div className="card">
-        <h3>Recording Retention</h3>
-        <div className="form-group">
-          <label className="form-label">
-            Days to retain recordings: {retentionDays}
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="365"
-            value={retentionDays}
-            onChange={(e) => setRetentionDays(Number(e.target.value))}
-          />
-        </div>
-        <div className="form-group">
-          <label className="form-label">
-            Maximum recordings to keep: {maxRecordings}
-          </label>
-          <input
-            type="number"
-            min="1"
-            max="100"
-            value={maxRecordings}
-            onChange={(e) => setMaxRecordings(Number(e.target.value))}
-          />
-        </div>
-      </div>
-
-      <div className="card">
-        <h3>Scheduled Recordings</h3>
-        <button className="cyber-button" onClick={addScheduledRecording}>
-          ➕ Add Scheduled Recording
-        </button>
-        <table style={{ width: '100%', marginTop: '1rem', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--primary)' }}>
-              <th style={{ padding: '1rem' }}>Date/Time</th>
-              <th style={{ padding: '1rem' }}>Description</th>
-              <th style={{ padding: '1rem' }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {scheduledRecordings.map((rec) => (
-              <tr key={rec.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                <td style={{ padding: '1rem' }}>
-                  {rec.date} {rec.time}
-                </td>
-                <td style={{ padding: '1rem' }}>{rec.description}</td>
-                <td style={{ padding: '1rem' }}>
-                  <button
-                    className="cyber-button"
-                    onClick={() => deleteScheduledRecording(rec.id)}
-                    style={{ padding: '0.5rem 1rem', fontSize: '0.8rem' }}
-                  >
-                    🗑 Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
       </div>
     </div>
   );
-}
+};
 
 export default Settings;
