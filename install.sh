@@ -1,45 +1,25 @@
 #!/usr/bin/env bash
 #=====================================================================
-#  RTSP NVR Dashboard – Public, token‑free installer for Ubuntu
+#  RTSP NVR Dashboard - Complete Installer for Ubuntu
+#  Builds and deploys the complete dashboard stack
 #=====================================================================
 #  What the script does
-#   1️⃣  Install APT prerequisites (curl, git, Docker Engine)
-#   2️⃣  Install Docker‑Compose v2 (CLI plugin)
-#   3️⃣  Clone / update the dashboard repo into /opt/rtsp-nvr-dashboard
-#   4️⃣  Create a minimal .env (or copy an existing one)
-#   5️⃣  Locate the docker‑compose file (any location, sub‑folder, template)
-#   6️⃣  **Strip the obsolete `version:` key** (Docker‑Compose v2 no longer uses it)
-#   7️⃣  **Build the images locally** (never pulls from GHCR)
-#   8️⃣  Start the stack (`docker compose up -d`)
-#   9️⃣  Print the UI URL and handy log‑viewing shortcuts
+#   1️⃣  Install APT prerequisites
+#   2️⃣  Install Docker and Docker Compose
+#   3️⃣  Clone/update the dashboard repo
+#   4️⃣  Create .env configuration
+#   5️⃣  Build all Docker images
+#   6️⃣  Start the complete stack
 #=====================================================================
 
 set -euo pipefail
 IFS=$'\n\t'
-trap 'echo -e "\n❌  Installer stopped on line $LINENO. Last command: $BASH_COMMAND\n"; exit 1' ERR
 
 # ---------- Helper output ----------
-log()   { echo -e "📦  $*"; }
-ok()    { echo -e "✅  $*"; }
-warn()  { echo -e "⚠️  $*"; }
-info()  { echo -e "ℹ️   $*"; }
-
-# Prompt helper (default optional)
-prompt() {
-    local name="$1"
-    local def="${2:-}"
-    local ans
-    if [[ -n "$def" ]]; then
-        read -rp "   $name [$def]: " ans
-        echo "${ans:-$def}"
-    else
-        read -rp "   $name: " ans
-        while [[ -z "$ans" ]]; do
-            read -rp "   $name (cannot be empty): " ans
-        done
-        echo "$ans"
-    fi
-}
+log()   { echo -e "\033[1;33m📦\033[0m  $*"; }
+ok()    { echo -e "\033[1;32m✅\033[0m  $*"; }
+warn()  { echo -e "\033[1;31m⚠️\033[0m  $*"; }
+info()  { echo -e "\033[1;34mℹ️\033[0m  $*"; }
 
 # ---------- 1 – Detect Ubuntu / Debian codename ----------
 log "Detecting distribution..."
@@ -50,53 +30,38 @@ else
     UBUNTU_CODENAME=$VERSION_CODENAME
 fi
 
-# If we are on the development release "noble" (Ubuntu 24.04) fall back to jammy
 if [[ "$UBUNTU_CODENAME" == "noble" ]]; then
     warn "Running on Ubuntu 'noble' (development). Switching apt sources to jammy."
     UBUNTU_CODENAME="jammy"
 fi
 log "Using apt codename: $UBUNTU_CODENAME"
 
-# ---------- 2 – Install APT prerequisites (force IPv4) ----------
-log "Updating APT index (IPv4 only)"
+# ---------- 2 – Install APT prerequisites ----------
+log "Updating APT index..."
 apt-get -o Acquire::ForceIPv4=true update -y
 
-log "Installing required packages"
+log "Installing required packages..."
 apt-get -o Acquire::ForceIPv4=true install -y \
-    ca-certificates curl gnupg lsb-release software-properties-common git
+    ca-certificates curl gnupg lsb-release software-properties-common git build-essential
 
 # ---------- 3 – Docker Engine ----------
-log "Adding Docker GPG key (overwrite if it already exists)"
-curl -fsSL https://download.docker.com/linux/ubuntu/gpg |
+log "Setting up Docker repository..."
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | \
     gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
 
-log "Adding Docker APT repository"
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] \
-https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable" |
+https://download.docker.com/linux/ubuntu $UBUNTU_CODENAME stable" | \
     tee /etc/apt/sources.list.d/docker.list > /dev/null
 
-log "Installing Docker Engine"
+log "Installing Docker Engine..."
 apt-get -o Acquire::ForceIPv4=true update -y
-apt-get -o Acquire::ForceIPv4=true install -y docker-ce docker-ce-cli containerd.io
+apt-get -o Acquire::ForceIPv4=true install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
 systemctl enable --now docker
 
-# ---------- 4 – Docker‑Compose (v2) ----------
-log "Fetching latest Docker‑Compose version"
-DC_LATEST=$(curl -fsSL https://api.github.com/repos/docker/compose/releases/latest |
-            grep '"tag_name":' | cut -d'"' -f4 | sed 's/^v//')
-log "Latest Docker‑Compose = v$DC_LATEST"
-
-COMPOSE_PATH="/usr/local/lib/docker/cli-plugins/docker-compose"
-mkdir -p "$(dirname "$COMPOSE_PATH")"
-log "Downloading Docker‑Compose binary"
-curl -L "https://github.com/docker/compose/releases/download/v${DC_LATEST}/docker-compose-linux-$(uname -m)" \
-    -o "$COMPOSE_PATH"
-chmod +x "$COMPOSE_PATH"
-docker compose version | head -n1
-
-# ---------- 5 – Clone / update the dashboard ----------
+# ---------- 4 – Clone / update the dashboard ----------
 TARGET_DIR="/opt/rtsp-nvr-dashboard"
 log "Preparing $TARGET_DIR"
+
 if [[ -d "$TARGET_DIR/.git" ]]; then
     ok "Repository already exists → pulling the latest"
     pushd "$TARGET_DIR" > /dev/null
@@ -108,136 +73,74 @@ else
     git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git "$TARGET_DIR"
 fi
 
-# ---------- 6 – Ensure a usable .env ----------
+# ---------- 5 – Create .env ----------
 cd "$TARGET_DIR"
-
-create_env_interactively() {
-    info "No .env template – creating a minimal one from prompts."
-    HOST_IP=$(prompt "HOST_IP (IP the UI will bind to)" "0.0.0.0")
-    NVR_URL=$(prompt "NVR_URL (RTSP URL, e.g. rtsp://user:pass@192.168.1.10:554/stream)")
-    ADMIN_USER=$(prompt "ADMIN_USER (web UI login name)" "admin")
-    ADMIN_PASSWORD=$(prompt "ADMIN_PASSWORD (web UI password)" "admin")
-
-    cat > .env <<EOF
-# -------------------------------------------------
-# RTSP‑NVR‑Dashboard – automatically generated .env
-# -------------------------------------------------
-HOST_IP=$HOST_IP
-NVR_URL=$NVR_URL
-ADMIN_USER=$ADMIN_USER
-ADMIN_PASSWORD=$ADMIN_PASSWORD
-EOF
-    ok ".env file created."
-    cat .env
-}
 
 if [[ -f .env ]]; then
     ok ".env already exists – leaving untouched."
+elif [[ -f .env.sample ]]; then
+    cp .env.sample .env
+    ok "Copied .env.sample → .env"
 else
-    if [[ -f .env.sample ]]; then
-        cp .env.sample .env && ok "Copied .env.sample → .env"
-    elif [[ -f .env.example ]]; then
-        cp .env.example .env && ok "Copied .env.example → .env"
-    elif [[ -f .env.default ]]; then
-        cp .env.default .env && ok "Copied .env.default → .env"
-    else
-        warn "No .env template in repository."
-        create_env_interactively
-    fi
+    info "Creating minimal .env..."
+    cat > .env <<EOF
+# RTSP NVR Dashboard Configuration
+HOST_IP=0.0.0.0
+NVR_URL=rtsp://admin:admin@192.168.1.10:554/stream
+ADMIN_USER=admin
+ADMIN_PASSWORD=your_password_here
+AUDIO_THRESHOLD_DB=30
+RECORDING_RETENTION_DAYS=7
+MAX_RECORDINGS=10
+EOF
+    ok ".env file created."
 fi
 
-info "Opening .env for final manual edit (Ctrl‑X to keep as‑is)."
+info "Please edit .env with your RTSP URL and settings (Ctrl+X to keep)"
 if command -v nano >/dev/null 2>&1; then
     nano .env
 else
     ${EDITOR:-vi} .env
 fi
 
-# ---------- 7️⃣ – Locate docker‑compose ----------
-log "Searching for a docker‑compose definition"
-COMPOSE_FILE=$(find . -type f \
-    \( -iname 'docker-compose.yml' -o -iname 'docker-compose.yaml' \) \
-    -not -path '*/\.*' | head -n1 || true)
+# ---------- 6 – Build Docker images ----------
+log "Building Docker images..."
 
-# Common sub‑folder “docker/”
-if [[ -z "$COMPOSE_FILE" && -f ./docker/docker-compose.yml ]]; then
-    COMPOSE_FILE=./docker/docker-compose.yml
-    ok "Found compose file in sub‑folder: $COMPOSE_FILE"
-fi
+# Build backend
+log "Building backend image..."
+docker compose -f docker-compose.yml build backend
 
-# Any template (example / sample / default)
-if [[ -z "$COMPOSE_FILE" ]]; then
-    TEMPLATE=$(find . -type f \
-        \( -iname '*compose*.example*' -o -iname '*compose*.sample*' -o -iname '*compose*.default*' \) \
-        -not -path '*/\.*' | head -n1 || true)
-    if [[ -n "$TEMPLATE" ]]; then
-        COMPOSE_FILE="./docker-compose.yml"
-        cp "$TEMPLATE" "$COMPOSE_FILE"
-        ok "Copied template $TEMPLATE → $COMPOSE_FILE"
-    fi
-fi
+# Build frontend
+log "Building frontend image..."
+docker compose -f docker-compose.yml build frontend
 
-# Final fallback – minimal compose that builds locally
-if [[ -z "$COMPOSE_FILE" ]]; then
-    warn "No compose file found – creating a minimal one that builds from source."
-    COMPOSE_FILE="./docker-compose.yml"
-    cat > "$COMPOSE_FILE" <<'EOF'
-services:
-  frontend:
-    build: ./frontend
-    container_name: rtsp-nvr-frontend
-    env_file: ./.env
-    ports:
-      - "${HOST_IP:-0.0.0.0}:3000:3000"
-    restart: unless-stopped
+# Build FFmpeg
+log "Building FFmpeg processor image..."
+docker compose -f docker-compose.yml build ffmpeg
 
-  ffmpeg:
-    build: ./ffmpeg
-    container_name: rtsp-nvr-ffmpeg
-    env_file: ./.env
-    restart: unless-stopped
-EOF
-    ok "Created fallback $COMPOSE_FILE"
-fi
+ok "All images built successfully."
 
-ok "Using compose file: $COMPOSE_FILE"
+# ---------- 7 – Start the stack ----------
+log "Starting the RTSP NVR Dashboard..."
+docker compose -f docker-compose.yml up -d
 
-# ---------- 8️⃣ – Remove obsolete `version:` ----------
-if grep -qi '^version:' "$COMPOSE_FILE"; then
-    warn "Removing obsolete `version:` line (Docker‑Compose v2 does not use it)."
-    cp "$COMPOSE_FILE" "${COMPOSE_FILE}.bak"
-    sed -i '/^[[:space:]]*version:/I d' "$COMPOSE_FILE"
-fi
-
-# ---------- 9️⃣ – Build images locally (no pull) ----------
-log "Building Docker images locally (this may take a minute)…"
-docker compose -f "$COMPOSE_FILE" build
-ok "Local image build finished."
-
-# ---------- 🔟 – Bring the stack up ----------
-log "Starting the stack (`docker compose up -d`)"
-docker compose -f "$COMPOSE_FILE" up -d
-
-# ---------- 11️⃣ – Final status ----------
-log "Waiting a few seconds for containers to initialise…"
+# ---------- 8 – Final status ----------
+log "Waiting for containers to initialize..."
 sleep 5
-log "Current container status"
-docker compose -f "$COMPOSE_FILE" ps
 
-# Show the address for the UI
-HOST_IP_TO_SHOW=$(grep '^HOST_IP=' .env | cut -d'=' -f2 | tr -d '"')
-HOST_IP_TO_SHOW=${HOST_IP_TO_SHOW:-0.0.0.0}
+log "Current container status:"
+docker compose -f docker-compose.yml ps
 
+# ---------- 9 – Summary ----------
 ok "=============================================================="
-ok "✅  Installation complete!"
-ok "Open your browser at:   http://$HOST_IP_TO_SHOW:3000"
-ok "--------------------------------------------------------------"
-ok "Live‑log options (pick one):"
-ok "  1) Simple:   docker compose -f \"$COMPOSE_FILE\" logs -f"
-ok "  2) Screen:   sudo apt-get install -y screen   # once"
-ok "     screen -S nvr-dashboard"
-ok "     docker compose -f \"$COMPOSE_FILE\" logs -f"
-ok "     # detach with Ctrl‑A D – re‑attach with: screen -r nvr-dashboard"
-ok "  3) Tmux:   sudo apt-get install -y tmux && tmux new -s nvr"
-ok "     docker compose -f \"$COMPOSE_FILE\" logs -f"
+ok "✅  RTSP NVR Dashboard installation complete!"
+ok "=============================================================="
+ok ""
+ok "🌐 Access the dashboard at:   http://0.0.0.0:3000"
+ok "🔑 Default credentials:      admin / (set in .env)"
+ok ""
+ok "📋 Useful commands:"
+ok "   View logs:   docker compose -f docker-compose.yml logs -f"
+ok "   Stop:        docker compose -f docker-compose.yml down"
+ok "   Restart:     docker compose -f docker-compose.yml restart"
 ok "=============================================================="
