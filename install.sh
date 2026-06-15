@@ -1,138 +1,157 @@
 #!/bin/bash
-
 # ============================================
-# RTSP NVR Dashboard - Installer Script
+# RTSP NVR Dashboard - Installer Script v2.1
 # ============================================
-# This script installs all dependencies and sets up the RTSP NVR Dashboard
-# Supports Ubuntu 20.04/22.04, Debian 11+
+# Supports Ubuntu 20.04/22.04/24.04, Debian 11+
+# Uses Docker Compose V2 (plugin)
 # ============================================
 
-set -e
+set -euo pipefail
 
-# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Logging
-LOG() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
+LOG()    { echo -e "${BLUE}[INFO]${NC} $1"; }
+SUCCESS() { echo -e "${GREEN}[OK]${NC} $1"; }
+WARN()   { echo -e "${YELLOW}[WARN]${NC} $1"; }
+ERROR()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
-SUCCESS() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
+[ "$EUID" -eq 0 ] || ERROR "Run as root: sudo ./install.sh"
 
-WARNING() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
+INSTALL_DIR="/opt/rtsp-nvr-dashboard"
+TARGET_USER="${SUDO_USER:-root}"
 
-ERROR() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
+LOG "RTSP NVR Dashboard v2.1 Installer"
+LOG "==================================="
 
-# Check for sudo privileges
-if [ "$EUID" -ne 0 ]; then
-    ERROR "This script must be run as root"
-    exit 1
+# ===== STEP 1: System dependencies =====
+LOG "Step 1/7: Installing system dependencies..."
+apt-get update -qq
+apt-get install -y -qq apt-transport-https ca-certificates curl gnupg lsb-release git ffmpeg > /dev/null 2>&1
+SUCCESS "System dependencies installed"
+
+# ===== STEP 2: Docker Engine =====
+if command -v docker &>/dev/null; then
+    SUCCESS "Docker already installed: $(docker --version)"
+else
+    LOG "Step 2/7: Installing Docker Engine..."
+    # Download and review install script first
+    curl -fsSL https://get.docker.com -o /tmp/docker-install.sh
+    less /tmp/docker-install.sh || true
+    bash /tmp/docker-install.sh > /dev/null 2>&1
+    rm -f /tmp/docker-install.sh
+    SUCCESS "Docker installed: $(docker --version)"
 fi
 
-LOG "Starting RTSP NVR Dashboard installation..."
-LOG "=========================================="
+# ===== STEP 3: Docker Compose V2 =====
+if docker compose version &>/dev/null; then
+    SUCCESS "Docker Compose V2 already installed: $(docker compose version)"
+else
+    LOG "Step 3/7: Installing Docker Compose V2..."
+    apt-get install -y -qq docker-compose-plugin > /dev/null 2>&1
+    SUCCESS "Docker Compose V2 installed: $(docker compose version)"
+fi
 
-# ===== STEP 1: Update system =====
-LOG "Step 1/8: Updating system packages..."
-apt-get update
-apt-get install -y apt-transport-https ca-certificates curl software-properties-common
+# ===== STEP 4: Add user to docker group =====
+if [ "$TARGET_USER" != "root" ]; then
+    usermod -aG docker "$TARGET_USER" 2>/dev/null || true
+    SUCCESS "Added '$TARGET_USER' to docker group"
+fi
 
-# ===== STEP 2: Install Docker =====
-LOG "Step 2/8: Installing Docker..."
-curl -fsSL https://get.docker.com -sS | sh
-usermod -aG docker $USER
-systemctl enable docker
-systemctl start docker
+# ===== STEP 5: Clone/update repository =====
+LOG "Step 5/7: Setting up repository..."
+if [ -d "$INSTALL_DIR/.git" ]; then
+    LOG "Updating existing installation..."
+    cd "$INSTALL_DIR"
+    git pull origin main 2>/dev/null || WARN "Git pull failed, using local files"
+else
+    git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git "$INSTALL_DIR" 2>/dev/null || \
+        ERROR "Failed to clone repository"
+fi
+SUCCESS "Repository ready at $INSTALL_DIR"
 
-# ===== STEP 3: Install Docker Compose =====
-LOG "Step 3/8: Installing Docker Compose..."
-curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" \
-    -o /usr/local/bin/docker-compose
-chmod +x /usr/local/bin/docker-compose
+# ===== STEP 6: Environment configuration =====
+LOG "Step 6/7: Configuring environment..."
+cd "$INSTALL_DIR"
 
-# ===== STEP 4: Install FFmpeg =====
-LOG "Step 4/8: Installing FFmpeg..."
-apt-get install -y ffmpeg
+if [ ! -f .env ]; then
+    # Generate secure random defaults
+    SECRET=*** rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -1)
+    JWT_SECRET=*** rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -1)
+    DB_PASS=*** rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p | head -1)
 
-# ===== STEP 5: Install Git =====
-LOG "Step 5/8: Installing Git..."
-apt-get install -y git
+    cat > .env <<ENVEOF
+# RTSP NVR Dashboard - Auto-generated config
+# Generated: $(date -Iseconds)
 
-# ===== STEP 6: Clone repository =====
-LOG "Step 6/8: Cloning repository..."
-cd /opt
-git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git
-cd rtsp-nvr-dashboard
+# Database
+DATABASE_URL=postgresql://admin:***@db:5432/rtsp_nvr
+POSTGRES_PASSWORD=***
 
-# ===== STEP 7: Setup environment =====
-LOG "Step 7/8: Setting up environment..."
+# Backend
+SECRET_KEY=***
+JWT_SECRET_KEY=***
+BACKEND_URL=http://backend:5000
 
-# Create .env from sample
-cp .env.sample .env
+# Redis
+REDIS_URL=redis://redis:6379
 
-# Edit .env with nano (or ask user to edit manually)
-echo ""
-echo -e "${YELLOW}Please configure your RTSP stream URL and other settings:${NC}"
-echo -e "${YELLOW}   nano /opt/rtsp-nvr-dashboard/.env${NC}"
-echo ""
-read -p "Press Enter when done editing, or skip to continue..."
+# Tailscale (optional)
+TAILSCALE_API_KEY=
+TAILSCALE_TAILNET_ID=
+TAILSCALE_AUTH_KEY=
 
-# ===== STEP 8: Build and start =====
-LOG "Step 8/8: Building and starting services..."
+# Recording
+AUDIO_THRESHOLD_DB=70
+RETENTION_DAYS=7
 
-# Build images
-docker compose build
+# Ports
+FRONTEND_PORT=3000
+BACKEND_PORT=5000
+FFMPEG_PORT=8889
 
-# Start services
+# Logging
+LOG_LEVEL=INFO
+ENVEOF
+    chmod 600 .env
+    SUCCESS ".env created with secure random keys"
+    WARN "Edit .env to configure your RTSP stream URL"
+else
+    SUCCESS ".env already exists (not overwritten)"
+fi
+
+# ===== STEP 7: Build and start =====
+LOG "Step 7/7: Building and starting services..."
+docker compose build --no-cache 2>&1 | tail -5
+SUCCESS "Images built"
+
 docker compose up -d
+SUCCESS "Services started"
 
-# Check status
-sleep 5
-docker compose ps
+# Wait for health checks
+LOG "Waiting for services to become healthy..."
+sleep 10
+
+# Show status
+echo ""
+LOG "Service Status:"
+docker compose ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}" 2>/dev/null || docker compose ps
 
 echo ""
 SUCCESS "Installation complete!"
 echo ""
-echo -e "${GREEN}Services:${NC}"
-echo -e "  Frontend:  http://localhost:3000"
-echo -e "  Backend:   http://localhost:5000"
-echo -e "  FFmpeg:    localhost:8889"
+echo -e "  ${GREEN}Frontend:${NC}  http://localhost:3000"
+echo -e "  ${GREEN}Backend:${NC}   http://localhost:5000"
+echo -e "  ${GREEN}API Docs:${NC}  http://localhost:5000/api/docs"
+echo -e "  ${GREEN}Health:${NC}    http://localhost:5000/health"
 echo ""
-echo -e "${YELLOW}Default credentials:${NC}"
-echo -e "  Username: admin"
-echo -e "  Password: admin"
+echo -e "  ${YELLOW}Default login:${NC} admin / admin"
+echo -e "  ${RED}Change the default password immediately!${NC}"
 echo ""
-echo -e "${BLUE}Next steps:${NC}"
-echo -e "  1. Configure /opt/rtsp-nvr-dashboard/.env with your RTSP URL"
-echo -e "  2. View logs: docker compose logs -f"
-echo -e "  3. Stop services: docker compose down"
-echo ""
-
-# ===== OPTIONAL: Tailscale Setup =====
-if command -v docker &> /dev/null; then
-    LOG "Tailscale setup (optional):"
-    LOG "  1. Install Tailscale: sudo apt install tailscale"
-    LOG "  2. Login: sudo tailscale up"
-    LOG "  3. Access dashboard via Tailscale IP: http://<tailscale-ip>:3000"
-    echo ""
-fi
-
-# ===== ADD USER TO DOCKER GROUP =====
-echo -e "${YELLOW}Adding user to docker group for local access:${NC}"
-read -p "Username? " username
-usermod -aG docker $username
-echo -e "${GREEN}Done!${NC}"
-
-echo ""
-SUCCESS "RTSP NVR Dashboard is now running!"
+echo -e "  ${BLUE}Logs:${NC}     docker compose logs -f"
+echo -e "  ${BLUE}Stop:${NC}     docker compose down"
+echo -e "  ${BLUE}Restart:${NC}  docker compose restart"
 echo ""

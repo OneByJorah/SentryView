@@ -1,12 +1,36 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Toaster, toast } from 'react-hot-toast';
+import { io } from 'socket.io-client';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Timeline from './components/Timeline';
 import Settings from './components/Settings';
 import './App.css';
 
-// ===== AUTH CONTEXT =====
+const api = {
+  async request(path, options = {}) {
+    const token = localStorage.getItem('access_token');
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const response = await fetch(path, { ...options, headers });
+    if (response.status === 401) {
+      localStorage.removeItem('access_token');
+      window.location.href = '/login';
+      return null;
+    }
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }));
+      throw new Error(error.error || 'Request failed');
+    }
+    return response.json();
+  },
+  get: (path) => api.request(path),
+  post: (path, body) => api.request(path, { method: 'POST', body: JSON.stringify(body) }),
+  put: (path, body) => api.request(path, { method: 'PUT', body: JSON.stringify(body) }),
+  del: (path) => api.request(path, { method: 'DELETE' }),
+};
+
 const AuthContext = React.createContext(null);
 
 const AuthProvider = ({ children }) => {
@@ -18,38 +42,36 @@ const AuthProvider = ({ children }) => {
       try {
         const token = localStorage.getItem('access_token');
         if (token) {
-          const response = await fetch('/api/auth/me', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          if (response.ok) {
-            const data = await response.json();
-            setUser(data);
-          }
+          const data = await api.get('/api/auth/me');
+          if (data) setUser(data);
         }
       } catch (error) {
-        console.error('Auth check failed:', error);
+        localStorage.removeItem('access_token');
       } finally {
         setLoading(false);
       }
     };
-
     checkAuth();
   }, []);
 
   const login = async (credentials) => {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(credentials)
-    });
-
-    if (response.ok) {
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(credentials),
+      });
       const data = await response.json();
-      localStorage.setItem('access_token', data.access_token);
-      setUser(data.user);
-      return { success: true };
+      if (data.access_token) {
+        localStorage.setItem('access_token', data.access_token);
+        setUser(data.user);
+        toast.success('Welcome, ' + data.user.username + '!');
+        return { success: true };
+      }
+      return { success: false, error: data.error || 'Login failed' };
+    } catch (err) {
+      return { success: false, error: 'Network error' };
     }
-    return { success: false, error: 'Invalid credentials' };
   };
 
   const logout = () => {
@@ -57,9 +79,7 @@ const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  if (loading) {
-    return <div className="loading-screen">Loading...</div>;
-  }
+  if (loading) return <div className="loading-screen"><div className="spinner" /><p>Loading...</p></div>;
 
   return (
     <AuthContext.Provider value={{ user, login, logout }}>
@@ -68,182 +88,108 @@ const AuthProvider = ({ children }) => {
   );
 };
 
-// ===== PROTECTED ROUTE =====
+const useAuth = () => React.useContext(AuthContext);
+
 const ProtectedRoute = ({ children }) => {
-  const { user, login, logout } = React.useContext(AuthContext);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const checkAuth = async () => {
-      const token = localStorage.getItem('access_token');
-      if (!token) {
-        setLoading(false);
-        return;
-      }
-
-      try {
-        const response = await fetch('/api/auth/me', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          setUser(data);
-        } else {
-          localStorage.removeItem('access_token');
-        }
-      } catch (error) {
-        console.error('Auth check failed:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
-  if (loading) {
-    return <div className="loading-screen">Loading...</div>;
-  }
-
+  const { user } = useAuth();
   return user ? children : <Navigate to="/login" />;
 };
 
-// ===== MAIN APP =====
+const useSocket = () => {
+  const [connected, setConnected] = useState(false);
+  const socket = useMemo(() => {
+    const s = io('/', { path: '/socket.io/', transports: ['websocket', 'polling'] });
+    s.on('connect', () => setConnected(true));
+    s.on('disconnect', () => setConnected(false));
+    return s;
+  }, []);
+  useEffect(() => () => { socket.disconnect(); }, [socket]);
+  return { socket, connected };
+};
+
+const Sidebar = ({ socketConnected }) => {
+  const { logout, user } = useAuth();
+  const location = useLocation();
+  const navItems = [
+    { path: '/dashboard', label: 'Dashboard' },
+    { path: '/timeline', label: 'Timeline' },
+    { path: '/settings', label: 'Settings' },
+  ];
+  return (
+    <aside className={'sidebar' + (location.pathname === '/login' ? ' hidden' : '')}>
+      <div className="sidebar-header">
+        <h2 className="cyber-text glow">NVR</h2>
+        <div className={'status-dot ' + (socketConnected ? 'online' : 'offline')} title={socketConnected ? 'Connected' : 'Disconnected'} />
+      </div>
+      <nav className="nav-menu">
+        {navItems.map(item => (
+          <div key={item.path} className={'nav-item' + (location.pathname === item.path ? ' active' : '')} onClick={() => window.location.href = item.path}>
+            <span>{item.label}</span>
+          </div>
+        ))}
+      </nav>
+      <div className="sidebar-footer">
+        <div className="user-info">
+          <span className="user-role">{user?.role || 'user'}</span>
+          <span className="user-name">{user?.username || 'Guest'}</span>
+        </div>
+        <button onClick={logout} className="btn btn-small btn-danger">Logout</button>
+      </div>
+    </aside>
+  );
+};
+
 function App() {
   const [darkMode, setDarkMode] = useState(true);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [streamStatus, setStreamStatus] = useState({});
+  const { socket, connected } = useSocket();
+  const [streams, setStreams] = useState([]);
   const [events, setEvents] = useState([]);
 
-  // ===== WEBSOCKET CONNECTION =====
   useEffect(() => {
-    const socket = new WebSocket('ws://localhost:5001');
+    socket.on('stream_update', (data) => {
+      setStreams(prev => prev.map(s => s.id === data.stream_id ? { ...s, status: data.status } : s));
+    });
+    socket.on('new_event', (data) => {
+      setEvents(prev => [data, ...prev]);
+      toast.success('New event: ' + data.event_type);
+    });
+    socket.on('recording_update', (data) => {
+      toast('Recording ' + data.type);
+    });
+    return () => { socket.off('stream_update'); socket.off('new_event'); socket.off('recording_update'); };
+  }, [socket]);
 
-    socket.onopen = () => {
-      console.log('WebSocket connected');
-    };
-
-    socket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      
-      if (data.type === 'stream_update') {
-        setStreamStatus(prev => ({ ...prev, [data.stream_id]: data.status }));
-      } else if (data.type === 'new_event') {
-        setEvents(prev => [...prev, data.event]);
-      } else if (data.type === 'recording_update') {
-        console.log('Recording update:', data);
-      }
-    };
-
-    socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
-    };
-
-    socket.onclose = () => {
-      console.log('WebSocket disconnected');
-    };
-
-    return () => {
-      socket.close();
-    };
-  }, []);
-
-  // ===== THEME TOGGLE =====
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (darkMode) {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
+    document.documentElement.classList.toggle('dark', darkMode);
+    document.documentElement.classList.toggle('light', !darkMode);
   }, [darkMode]);
-
-  // ===== NAVIGATION =====
-  const navigate = () => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      window.location.href = '/dashboard';
-    } else {
-      window.location.href = '/login';
-    }
-  };
 
   return (
     <AuthProvider>
       <Router>
-        <div className={`app ${darkMode ? 'dark' : 'light'}`}>
+        <div className={'app ' + (darkMode ? 'dark' : 'light')}>
+          <Toaster position="top-right" toastOptions={{ duration: 3000, style: { background: darkMode ? '#1a1a2e' : '#fff', color: darkMode ? '#e0e0e0' : '#333' } }} />
           <header className="header">
             <div className="header-left">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="menu-btn">
-                ☰
-              </button>
-              <h1>📡 RTSP NVR Dashboard</h1>
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="menu-btn">Menu</button>
+              <h1 className="cyber-text">RTSP NVR Dashboard</h1>
             </div>
             <div className="header-right">
               <button onClick={() => setDarkMode(!darkMode)} className="theme-btn">
-                {darkMode ? '☀️ Light' : '🌙 Dark'}
-              </button>
-              <button onClick={navigate} className="nav-btn">
-                🏠 Dashboard
+                {darkMode ? 'Light' : 'Dark'}
               </button>
             </div>
           </header>
-
           <div className="main-container">
-            <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`}>
-              <nav className="nav-menu">
-                <div className="nav-item" onClick={() => window.location.href = '/dashboard'}>
-                  📺 <span>Dashboard</span>
-                </div>
-                <div className="nav-item" onClick={() => window.location.href = '/timeline'}>
-                  📅 <span>Timeline</span>
-                </div>
-                <div className="nav-item" onClick={() => window.location.href = '/settings'}>
-                  ⚙️ <span>Settings</span>
-                </div>
-                <div className="nav-item" onClick={() => window.location.href = '/analytics'}>
-                  📊 <span>Analytics</span>
-                </div>
-                <div className="nav-item" onClick={() => window.location.href = '/tailscale'}>
-                  🔗 <span>Tailscale</span>
-                </div>
-              </nav>
-            </aside>
-
-            <main className="content">
+            <Sidebar socketConnected={connected} />
+            <main className={'content' + (sidebarOpen ? '' : ' sidebar-closed')}>
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/" element={<Navigate to="/dashboard" />} />
-                <Route path="/dashboard" element={
-                  <ProtectedRoute>
-                    <Dashboard onStatusUpdate={setStreamStatus} />
-                  </ProtectedRoute>
-                } />
-                <Route path="/timeline" element={
-                  <ProtectedRoute>
-                    <Timeline events={events} />
-                  </ProtectedRoute>
-                } />
-                <Route path="/settings" element={
-                  <ProtectedRoute>
-                    <Settings />
-                  </ProtectedRoute>
-                } />
-                <Route path="/analytics" element={
-                  <ProtectedRoute>
-                    <Dashboard analyticsMode />
-                  </ProtectedRoute>
-                } />
-                <Route path="/tailscale" element={
-                  <ProtectedRoute>
-                    <div className="tailscale-panel">
-                      <h2>🔗 Tailscale Network</h2>
-                      <p>Access your dashboard securely via Tailscale mesh network.</p>
-                      <pre>{JSON.stringify(window.location, null, 2)}</pre>
-                    </div>
-                  </ProtectedRoute>
-                } />
+                <Route path="/dashboard" element={<ProtectedRoute><Dashboard socket={socket} /></ProtectedRoute>} />
+                <Route path="/timeline" element={<ProtectedRoute><Timeline events={events} /></ProtectedRoute>} />
+                <Route path="/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
               </Routes>
             </main>
           </div>

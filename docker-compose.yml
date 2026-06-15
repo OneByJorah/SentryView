@@ -1,7 +1,4 @@
-version: '3.8'
-
 services:
-  # ===== FRONTEND =====
   frontend:
     build:
       context: ./frontend
@@ -12,14 +9,18 @@ services:
     environment:
       - REACT_APP_API_URL=${BACKEND_URL:-http://backend:5000}
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     networks:
       - rtsp-nvr-network
     restart: unless-stopped
-    volumes:
-      - /var/log/rtsp-nvr/frontend:/var/log/rtsp-nvr/frontend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
-  # ===== BACKEND =====
   backend:
     build:
       context: ./backend
@@ -28,24 +29,31 @@ services:
     ports:
       - "${BACKEND_PORT:-5000}:5000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-postgresql://admin:***@db:5432/rtsp_nvr}
-      - REDIS_URL=${REDIS_URL:-redis://redis:6379}
-      - SECRET_KEY=${SECRET_KEY:-change-this-in-production}
-      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-jwt-secret-key}
+      - DATABASE_URL=postgresql://admin:${POSTGRES_PASSWORD:-secure_password_change_me}@db:5432/rtsp_nvr
+      - REDIS_URL=redis://redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-this-to-a-random-secret}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret}
       - TAILSCALE_API_KEY=${TAILSCALE_API_KEY:-}
       - TAILSCALE_TAILNET_ID=${TAILSCALE_TAILNET_ID:-}
       - WEBSOCKET_ENABLED=true
       - LOG_LEVEL=INFO
     depends_on:
-      - db
-      - redis
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     networks:
       - rtsp-nvr-network
     restart: unless-stopped
     volumes:
-      - /var/log/rtsp-nvr/backend:/var/log/rtsp-nvr/backend
+      - backend-logs:/var/log/rtsp-nvr/backend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
-  # ===== DATABASE (PostgreSQL with pgvector) =====
   db:
     image: postgres:15-alpine
     container_name: rtsp-nvr-db
@@ -55,23 +63,32 @@ services:
       - POSTGRES_DB=rtsp_nvr
     volumes:
       - rtsp-nvr-data:/var/lib/postgresql/data
-      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
     networks:
       - rtsp-nvr-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d rtsp_nvr"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
-  # ===== REDIS =====
   redis:
     image: redis:7-alpine
     container_name: rtsp-nvr-redis
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - rtsp-nvr-redis:/data
     networks:
       - rtsp-nvr-network
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
 
-  # ===== FFmpeg =====
   ffmpeg:
     build:
       context: ./ffmpeg
@@ -80,6 +97,7 @@ services:
     environment:
       - INPUT_URL=${RTSP_URL:-rtsp://example.com/stream}
       - OUTPUT_PATH=/output
+      - BACKEND_URL=http://backend:5000
     volumes:
       - rtsp-nvr-ffmpeg:/output:rw
     networks:
@@ -88,47 +106,26 @@ services:
     depends_on:
       - backend
 
-  # ===== TAILSCALE (for secure remote access) =====
-  tailscale:
-    image: tailscale/tailscale:latest
-    container_name: rtsp-nvr-tailscale
-    environment:
-      - TS_AUTH_KEY=${TAILSCALE_AUTH_KEY:-}
-      - TAILSCALE_STATE_DIR=/tailscale
-    volumes:
-      - rtsp-nvr-tailscale:/tailscale
-    networks:
-      - rtsp-nvr-network
-    restart: unless-stopped
-    # Only run if TAILSCALE_AUTH_KEY is set
-    condition: service_healthy
-
-  # ===== BACKUP (scheduled) =====
   backup:
-    image: alpine:latest
+    image: postgres:15-alpine
     container_name: rtsp-nvr-backup
-    command: >
-      sh -c "
-      while true; do
-        date +\"%Y%m%d_%H%M%S\" > /tmp/backup_timestamp.txt;
-        pg_dump -h db -U admin rtsp_nvr > /tmp/backup_$$(cat /tmp/backup_timestamp.txt).sql;
-        tar -czf /backups/backup_$$(cat /tmp/backup_timestamp.txt).tar.gz /tmp/backup_*.sql;
-        rm -f /tmp/backup_*.sql;
-        sleep 24h;
-      done
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "0 2 * * * PGPASSWORD='${POSTGRES_PASSWORD:-secure_password_change_me}' pg_dump -h db -U admin -Fc rtsp_nvr > /backups/backup_\$(date +%Y%m%d_%H%M%S).dump 2>> /backups/backup.log" | crontab -
+        crond -f -l 2
     environment:
-      - PGPASSWORD=${POSTGRES_PASSWORD:-}
+      - PGPASSWORD=${POSTGRES_PASSWORD:-secure_password_change_me}
+      - POSTGRES_USER=admin
+      - POSTGRES_DB=rtsp_nvr
     volumes:
       - rtsp-nvr-backup:/backups
-      - rtsp-nvr-data:/var/lib/postgresql/data:ro
     networks:
       - rtsp-nvr-network
     restart: unless-stopped
-    deploy:
-      restart_policy:
-        condition: on-failure
-        delay: 30s
-        max_attempts: 3
+    depends_on:
+      db:
+        condition: service_healthy
 
 networks:
   rtsp-nvr-network:
@@ -144,5 +141,5 @@ volumes:
     name: rtsp-nvr-ffmpeg
   rtsp-nvr-backup:
     name: rtsp-nvr-backup
-  rtsp-nvr-tailscale:
-    name: rtsp-nvr-tailscale
+  backend-logs:
+    name: rtsp-nvr-backend-logs
