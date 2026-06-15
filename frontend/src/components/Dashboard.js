@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api';
 
-const Dashboard = ({ onStatusUpdate }) => {
+const Dashboard = ({ socket }) => {
   const [streams, setStreams] = useState([]);
   const [loading, setLoading] = useState(true);
   const [analytics, setAnalytics] = useState(null);
-  const [audioLevels, setAudioLevels] = useState({});
   const [recording, setRecording] = useState(null);
   const [selectedStream, setSelectedStream] = useState(null);
   const [streamUrl, setStreamUrl] = useState('');
   const [isAddingStream, setIsAddingStream] = useState(false);
+  const [newStreamName, setNewStreamName] = useState('');
 
-  // ===== FETCH STREAMS =====
   useEffect(() => {
     fetchStreams();
     fetchAnalytics();
@@ -18,14 +18,10 @@ const Dashboard = ({ onStatusUpdate }) => {
 
   const fetchStreams = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/streams', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setStreams(data.streams);
-    } catch (error) {
-      console.error('Failed to fetch streams:', error);
+      const data = await api.get('/api/streams');
+      if (data) setStreams(data.streams || []);
+    } catch (e) {
+      console.error('Failed to fetch streams:', e);
     } finally {
       setLoading(false);
     }
@@ -33,269 +29,130 @@ const Dashboard = ({ onStatusUpdate }) => {
 
   const fetchAnalytics = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/analytics/overview', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const data = await response.json();
-      setAnalytics(data);
-    } catch (error) {
-      console.error('Failed to fetch analytics:', error);
-    }
+      const data = await api.get('/api/analytics/overview');
+      if (data) setAnalytics(data);
+    } catch (e) { console.error('Failed to fetch analytics:', e); }
   };
 
-  // ===== ADD STREAM =====
   const addStream = async () => {
-    if (!streamUrl.trim()) return;
-
+    if (!streamUrl.trim() || !newStreamName.trim()) return;
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/streams', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ name: 'New Stream', url: streamUrl })
-      });
-
-      if (response.ok) {
-        fetchStreams();
-        setStreamUrl('');
-        setIsAddingStream(false);
-      }
-    } catch (error) {
-      console.error('Failed to add stream:', error);
-    }
+      await api.post('/api/streams', { name: newStreamName.trim(), url: streamUrl.trim() });
+      fetchStreams();
+      setStreamUrl('');
+      setNewStreamName('');
+      setIsAddingStream(false);
+    } catch (e) { alert(e.message); }
   };
 
-  // ===== DELETE STREAM =====
   const deleteStream = async (id) => {
-    if (!confirm('Delete this stream?')) return;
-
+    if (!window.confirm('Delete this stream?')) return;
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`/api/streams/${id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        fetchStreams();
-      }
-    } catch (error) {
-      console.error('Failed to delete stream:', error);
-    }
+      await api.del('/api/streams/' + id);
+      fetchStreams();
+    } catch (e) { alert(e.message); }
   };
 
-  // ===== START RECORDING =====
   const startRecording = async (streamId) => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch('/api/recordings', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify({ stream_id: streamId })
-      });
-
-      if (response.ok) {
-        setRecording(streamId);
-      }
-    } catch (error) {
-      console.error('Failed to start recording:', error);
-    }
+      const data = await api.post('/api/recordings', { stream_id: streamId });
+      if (data) setRecording(streamId);
+    } catch (e) { alert(e.message); }
   };
 
-  // ===== STOP RECORDING =====
-  const stopRecording = async (recordingId) => {
+  const stopRecording = async () => {
     try {
-      const token = localStorage.getItem('access_token');
-      const response = await fetch(`/api/recordings/${recordingId}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` }
-      });
-
-      if (response.ok) {
-        setRecording(null);
+      // Find active recording for this stream
+      const recData = await api.get('/api/recordings?active=true&stream_id=' + recording);
+      if (recData && recData.recordings && recData.recordings.length > 0) {
+        await api.del('/api/recordings/' + recData.recordings[0].id);
       }
-    } catch (error) {
-      console.error('Failed to stop recording:', error);
-    }
+      setRecording(null);
+      fetchAnalytics();
+    } catch (e) { alert(e.message); }
   };
 
-  // ===== CONNECT TO STREAM =====
-  const connectStream = (streamId, url) => {
-    try {
-      const socket = new WebSocket(`ws://${window.location.host}`);
-      
-      socket.onopen = () => {
-        console.log('Connected to stream');
-      };
-
-      socket.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'stream_update') {
-          setAudioLevels(prev => ({ ...prev, [streamId]: data.audioLevel }));
-          if (onStatusUpdate) {
-            onStatusUpdate({ stream_id: streamId, status: data.status });
-          }
-        }
-      };
-    } catch (error) {
-      console.error('Failed to connect:', error);
-    }
-  };
-
-  // ===== RENDER =====
-  if (loading) {
-    return (
-      <div className="loading-container">
-        <div className="spinner"></div>
-        <p>Loading dashboard...</p>
-      </div>
-    );
-  }
+  if (loading) return <div className="loading-container"><div className="spinner" /><p>Loading dashboard...</p></div>;
 
   return (
     <div className="dashboard">
-      {/* ===== STREAMS GRID ===== */}
       <div className="streams-grid">
         {streams.map((stream) => (
           <div key={stream.id} className="stream-card">
             <div className="stream-header">
               <h3>{stream.name}</h3>
+              <div className="stream-status">
+                <span className={'status-indicator ' + (stream.is_active ? 'online' : 'offline')} />
+                {stream.is_active ? 'Active' : 'Inactive'}
+              </div>
               <div className="stream-actions">
-                <button 
-                  onClick={() => connectStream(stream.id, stream.url)}
-                  className="btn btn-small"
-                >
-                  ▶ Connect
+                <button onClick={() => setSelectedStream(selectedStream === stream.id ? null : stream.id)} className="btn btn-small">
+                  {selectedStream === stream.id ? 'Close' : 'View'}
                 </button>
-                <button 
-                  onClick={() => deleteStream(stream.id)}
-                  className="btn btn-danger btn-small"
-                >
-                  🗑️ Delete
-                </button>
+                <button onClick={() => deleteStream(stream.id)} className="btn btn-danger btn-small">Delete</button>
               </div>
             </div>
 
-            <div className="stream-player">
-              {selectedStream === stream.id ? (
-                <video 
-                  ref={(video) => {
-                    if (video) {
-                      video.srcObject = new MediaStream([
-                        ...new MediaStream().getTracks()
-                      ]);
-                      video.src = stream.url;
-                      video.play();
-                    }
-                  }}
-                  autoPlay
-                  controls
-                  muted
-                  className="video-player"
-                />
-              ) : (
+            {selectedStream === stream.id && (
+              <div className="stream-player">
                 <div className="stream-placeholder">
-                  <span>📺</span>
-                  <p>Click Connect to view stream</p>
+                  <p>RTSP streams require browser plugin or HLS transcoding</p>
+                  <p className="stream-url">{stream.url}</p>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="stream-controls">
-              <button 
-                onClick={() => startRecording(stream.id)}
-                className="btn btn-record"
-                disabled={!!recording && recording !== stream.id}
-              >
-                🎥 Start Record
-              </button>
-              {recording === stream.id && (
-                <button 
-                  onClick={() => stopRecording(recording)}
-                  className="btn btn-stop"
-                >
-                  ⏹️ Stop Record
+              {!recording || recording === stream.id ? (
+                <button onClick={() => startRecording(stream.id)} className="btn btn-record" disabled={!!recording}>
+                  Start Record
                 </button>
+              ) : null}
+              {recording === stream.id && (
+                <button onClick={stopRecording} className="btn btn-stop">Stop Record</button>
               )}
             </div>
           </div>
         ))}
 
-        {/* ===== ADD STREAM FORM ===== */}
         {isAddingStream ? (
           <div className="stream-card add-stream-card">
             <h3>Add New Stream</h3>
-            <input
-              type="text"
-              placeholder="RTSP URL (e.g., rtsp://user:pass@ip:554/stream)"
-              value={streamUrl}
-              onChange={(e) => setStreamUrl(e.target.value)}
-              className="stream-input"
-            />
+            <input type="text" placeholder="Stream Name" value={newStreamName} onChange={(e) => setNewStreamName(e.target.value)} className="stream-input" />
+            <input type="text" placeholder="RTSP URL (rtsp://...)" value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} className="stream-input" />
             <div className="stream-actions">
-              <button onClick={addStream} className="btn btn-primary">
-                ➕ Add Stream
-              </button>
-              <button onClick={() => setIsAddingStream(false)} className="btn">
-                ✖️ Cancel
-              </button>
+              <button onClick={addStream} className="btn btn-primary">Add Stream</button>
+              <button onClick={() => { setIsAddingStream(false); setStreamUrl(''); setNewStreamName(''); }} className="btn">Cancel</button>
             </div>
           </div>
         ) : (
-          <button onClick={() => setIsAddingStream(true)} className="btn btn-add">
-            ➕ Add Stream
-          </button>
+          <button onClick={() => setIsAddingStream(true)} className="btn btn-add">+ Add Stream</button>
         )}
       </div>
 
-      {/* ===== ANALYTICS PANEL ===== */}
       {analytics && (
         <div className="analytics-panel">
-          <h2>📊 Analytics</h2>
+          <h2>Analytics</h2>
           <div className="analytics-grid">
-            <div className="analytics-card">
-              <h3>Streams</h3>
-              <p>Total: {analytics.streams.total}</p>
-              <p>Active: {analytics.streams.active}</p>
-            </div>
-            <div className="analytics-card">
-              <h3>Recordings</h3>
-              <p>Total: {analytics.recordings.total}</p>
-              <p>Total Time: {(analytics.recordings.total_seconds / 3600).toFixed(2)}h</p>
-            </div>
-            <div className="analytics-card">
-              <h3>Events</h3>
-              {analytics.events.map((event, index) => (
-                <p key={index}>{event.type}: {event.count}</p>
-              ))}
-            </div>
+            <div className="analytics-card"><h3>Streams</h3><p>Total: {analytics.streams.total}</p><p>Active: {analytics.streams.active}</p></div>
+            <div className="analytics-card"><h3>Recordings</h3><p>Total: {analytics.recordings.total}</p><p>Time: {(analytics.recordings.total_seconds / 3600).toFixed(1)}h</p></div>
+            <div className="analytics-card"><h3>Events</h3>{analytics.events.map((e, i) => <p key={i}>{e.type}: {e.count}</p>)}</div>
           </div>
+          {analytics.daily_recordings && analytics.daily_recordings.length > 0 && (
+            <div className="daily-chart">
+              <h3>Recordings (Last 7 Days)</h3>
+              <div className="bar-chart">
+                {analytics.daily_recordings.map((d, i) => (
+                  <div key={i} className="bar-item">
+                    <div className="bar" style={{ height: Math.max(10, d.count * 20) + 'px' }} />
+                    <span className="bar-label">{d.day}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
-
-      {/* ===== AUDIO LEVELS ===== */}
-      <div className="audio-levels">
-        <h3>🔊 Audio Levels</h3>
-        {Object.entries(audioLevels).map(([streamId, level]) => (
-          <div key={streamId} className="audio-bar">
-            <span>{streams.find(s => s.id === streamId)?.name}</span>
-            <div className="bar-container">
-              <div 
-                className="bar" 
-                style={{ width: `${level}%` }}
-              />
-            </div>
-            <span>{level.toFixed(1)}dB</span>
-          </div>
-        ))}
-      </div>
     </div>
   );
 };

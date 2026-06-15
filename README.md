@@ -1,342 +1,289 @@
-# 📡 RTSP NVR Dashboard
+# RTSP NVR Dashboard
 
 [![Docker](https://img.shields.io/badge/Docker-Required-2496ED?logo=docker)](https://www.docker.com/)
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask)](https://flask.palletsprojects.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Maintained by OneByJorah](https://img.shields.io/badge/Maintained%20by-OneByJorah-1E90FF?logo=github)](https://github.com/OneByJorah)
+[![Version](https://img.shields.io/badge/Version-2.1.0-blue.svg)](https://github.com/OneByJorah/rtsp-nvr-dashboard)
 
 ---
 
-## 📋 Overview
+## Overview
 
-**RTSP NVR Dashboard** is a modern, cyber-themed Network Video Recorder dashboard for monitoring and managing RTSP camera streams. Features real-time video monitoring, audio-triggered recording, event scheduling, and a responsive web interface — all containerized with Docker for easy deployment.
+**RTSP NVR Dashboard** is a modern, cyber-themed Network Video Recorder dashboard for monitoring and managing RTSP camera streams. Features real-time video monitoring, audio-triggered recording, event scheduling, and a responsive web interface - all containerized with Docker for easy deployment.
 
-> **Built with ❤️ by [OneByJorah](https://github.com/OneByJorah)**
-
----
-
-## ✨ Features
-
-| Feature | Description |
-|---------|-------------|
-| 🎥 **Live Stream Dashboard** | Monitor multiple RTSP camera feeds in real-time |
-| 🔊 **Audio-Triggered Recording** | Auto-record when audio exceeds configurable dB threshold |
-| 📅 **Event Timeline** | View and filter recordings by type (motion, audio, scheduled) |
-| ⏰ **Scheduled Recordings** | Create and manage recording schedules |
-| 🎨 **Cyber Theme UI** | Futuristic CRT scanline effects and dark interface |
-| 🔐 **Authentication** | Secure access with admin/user roles |
-| 🧹 **Auto-Cleanup** | Automatic removal of old recordings per retention policy |
-| 📊 **System Stats** | Monitor CPU, memory, and disk usage |
-| 🛠️ **FFmpeg Integration** | Stream transcoding and processing |
+> Built with love by [OneByJorah](https://github.com/OneByJorah)
 
 ---
 
-## 🖼️ Screenshots
+## Features
 
-| Dashboard | Stream Player | Timeline | Settings |
-|-----------|--------------|----------|----------|
-| ![Dashboard](assets/screenshot-dashboard.png) | ![Stream](assets/screenshot-stream.png) | ![Timeline](assets/screenshot-timeline.png) | ![Settings](assets/screenshot-settings.png) |
+| Feature | Status | Description |
+|---------|--------|-------------|
+| Live Stream Dashboard | Done | Monitor multiple RTSP camera feeds |
+| Audio-Triggered Recording | Done | Auto-record when audio exceeds dB threshold |
+| Event Timeline | Done | View and filter recordings by type |
+| Scheduled Recordings | Done | Create recurring recording schedules |
+| Real-Time Notifications | Done | WebSocket-powered live updates |
+| Analytics Dashboard | Done | Stream usage, recording stats, daily charts |
+| Backup & Restore | Done | Automated daily pg_dump backups |
+| Cyber Theme UI | Done | CRT scanline effects, dark/light toggle |
+| JWT Authentication | Done | Secure access with role-based permissions |
+| Rate Limiting | Done | Per-endpoint API rate limiting |
+| Mobile Responsive | Done | Adaptive layout for all devices |
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                    Docker Compose                        │
-│                                                         │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐  │
-│  │   Frontend   │  │   Backend    │  │    FFmpeg    │  │
-│  │   (React)    │──│   (Flask)    │──│  Processor   │  │
-│  │   Port 3000  │  │   Port 5000  │  │   Port 8889  │  │
-│  └──────────────┘  └──────────────┘  └──────────────┘  │
-│         │                  │                  │         │
-│         └──────────────────┴──────────────────┘         │
-│                            │                            │
-│                     RTSP Camera Streams                  │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📁 Project Structure
-
-```
-rtsp-nvr-dashboard/
-├── docker-compose.yml        # Service orchestration
-├── install.sh                # Ubuntu installer script
-├── .env.sample               # Configuration template
-├── .gitignore                # Git ignore rules
-├── Dockerfile.backend        # Backend container definition
-├── frontend/                 # React frontend
-│   ├── Dockerfile           # Frontend container
-│   ├── nginx.conf           # Nginx reverse proxy config
-│   ├── package.json         # Node.js dependencies
-│   ├── public/              # Static assets
-│   └── src/                 # React components
-├── backend/                  # Flask backend
-│   ├── Dockerfile           # Backend container
-│   ├── app.py               # Main application
-│   └── requirements.txt     # Python dependencies
-├── ffmpeg/                   # FFmpeg processor
-│   ├── Dockerfile           # FFmpeg container
-│   ├── processor.py         # Stream processing logic
-│   └── requirements.txt     # Python dependencies
-└── assets/                   # Screenshots and banners
++------------------------------------------------------------------+
+|                        Docker Compose v5                          |
+|                                                                  |
+|  +----------------+    +----------------+    +----------------+  |
+|  |    Frontend     |    |    Backend     |    |    FFmpeg      |  |
+|  |   (React 18)   |--->|   (Flask 3.1)  |--->|   Processor    |  |
+|  |   Nginx :80    |    |  Gunicorn :5000|    |   Port 8889    |  |
+|  +----------------+    +-------+--------+    +----------------+  |
+|                               |                                  |
+|                        +------+------+                          |
+|                        |             |                          |
+|                   +----v----+  +----v----+                      |
+|                   |Postgres |  |  Redis   |                      |
+|                   |  15     |  |  7.x     |                      |
+|                   +---------+  +---------+                      |
+|                                                                  |
+|                   +---------+                                    |
+|                   | Backup  |                                    |
+|                   | Service |                                    |
+|                   +---------+                                    |
++------------------------------------------------------------------+
 ```
 
 ---
 
-## 📋 Prerequisites
+## Prerequisites
 
 | Requirement | Details |
 |-------------|---------|
-| **OS** | Ubuntu 20.04/22.04, Debian 11+, or any Docker-capable Linux |
+| **OS** | Ubuntu 20.04/22.04/24.04, Debian 11+, or any Docker-capable Linux |
 | **Docker** | Docker Engine 20.10+ and Docker Compose V2 |
 | **RAM** | Minimum 2GB (4GB recommended) |
+| **Disk** | 10GB free (for recordings and backups) |
 | **Network** | Access to RTSP camera streams |
 | **Ports** | 3000 (frontend), 5000 (backend), 8889 (FFmpeg) |
 
 ---
 
-## ⚡ Quick Start
+## Quick Start
 
-### 1. Clone the Repository
+### Automated Install (Ubuntu/Debian)
 
 ```bash
 git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git
 cd rtsp-nvr-dashboard
-```
-
-### 2. Run the Installer
-
-```bash
-# Installs Docker, dependencies, and builds images
 chmod +x install.sh
-./install.sh
+sudo ./install.sh
 ```
 
-### 3. Configure RTSP Streams
+### Manual Setup
 
 ```bash
+git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git
+cd rtsp-nvr-dashboard
+
+# Create environment file
 cp .env.sample .env
-nano .env
-```
+# Edit .env with your settings
 
-### 4. Start All Services
-
-```bash
+# Build and run
 docker compose up -d
 ```
 
-### 5. Access the Dashboard
+### Service Endpoints
 
 | Service | URL |
 |---------|-----|
-| **Frontend** | http://localhost:3000 |
-| **Backend API** | http://localhost:5000 |
-| **API Docs** | http://localhost:5000/docs |
+| Frontend | http://localhost:3000 |
+| Backend API | http://localhost:5000 |
+| API Docs | http://localhost:5000/api/docs |
+| Health Check | http://localhost:5000/health |
 
 ### Default Credentials
 
 | Field | Value |
 |-------|-------|
-| **Username** | `admin` |
-| **Password** | `admin` |
+| **Username** | admin |
+| **Password** | admin |
 
-> ⚠️ **Change the default credentials immediately after first login!**
+> **IMPORTANT**: Change the default password immediately after first login!
 
 ---
 
-## 🔧 Configuration
+## Configuration
 
-Edit the `.env` file to customize:
+Edit the `.env` file:
 
 ```bash
-# RTSP Stream Configuration
-RTSP_URL=rtsp://username:password@192.168.1.100:554/stream
+# Required: Your RTSP stream URL
+RTSP_URL=rtsp://username:password@camera-host:554/stream
 
 # Recording Settings
-AUDIO_THRESHOLD_DB=70        # dB threshold for audio-triggered recording
-RETENTION_DAYS=7             # Days to keep recordings/events
+AUDIO_THRESHOLD_DB=70
+RETENTION_DAYS=7
 
-# System Settings
+# Security (auto-generated by install.sh)
+SECRET_KEY=your-secret-key-here
+JWT_SECRET_KEY=your-jwt-secret-here
+POSTGRES_PASSWORD=your-db-password-here
+
+# Ports
 FRONTEND_PORT=3000
 BACKEND_PORT=5000
 FFMPEG_PORT=8889
+
+# Logging
+LOG_LEVEL=INFO
 ```
 
-### Multiple Cameras
-
-Add multiple RTSP URLs separated by commas:
-
-```bash
-RTSP_URL=rtsp://user:pass@192.168.1.100:554/stream,rtsp://user:pass@192.168.1.101:554/stream
-```
+Add multiple streams via the Dashboard UI after login.
 
 ---
 
-## 🔌 API Reference
+## API Reference
 
 ### Authentication
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/auth/login` | Login and receive session token |
-| `POST` | `/api/auth/logout` | Logout and invalidate session |
-| `GET` | `/api/auth/me` | Get current user info |
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| POST | `/api/auth/login` | 10/min |
+| POST | `/api/auth/register` | 5/min |
+| GET | `/api/auth/me` | - |
+| PUT | `/api/auth/password` | 5/min |
+| POST | `/api/auth/logout` | - |
 
 ### Streams
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/streams` | List all configured streams |
-| `POST` | `/api/streams` | Add a new RTSP stream |
-| `DELETE` | `/api/streams/<id>` | Remove a stream |
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| GET | `/api/streams` | 30/min |
+| POST | `/api/streams` | 10/min |
+| PUT | `/api/streams/<id>` | 10/min |
+| DELETE | `/api/streams/<id>` | 10/min |
 
 ### Recordings
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/recordings` | List all recordings |
-| `POST` | `/api/recordings` | Start a recording |
-| `DELETE` | `/api/recordings/<id>` | Stop a recording |
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| GET | `/api/recordings` | 30/min |
+| POST | `/api/recordings` | 5/min |
+| DELETE | `/api/recordings/<id>` | 5/min |
 
 ### Events
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/events` | List all events |
-| `GET` | `/api/events?type=audio` | Filter events by type |
-| `POST` | `/api/events` | Create a manual event |
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| GET | `/api/events` | 30/min |
+| POST | `/api/events` | 10/min |
 
 ### Schedules
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/api/schedules` | List all schedules |
-| `POST` | `/api/schedules` | Create a new schedule |
-| `DELETE` | `/api/schedules/<id>` | Delete a schedule |
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| GET | `/api/schedules` | 30/min |
+| POST | `/api/schedules` | 10/min |
+| PUT | `/api/schedules/<id>` | 10/min |
+| DELETE | `/api/schedules/<id>` | 10/min |
+
+### Analytics and Backup
+
+| Method | Endpoint | Rate Limit |
+|--------|----------|------------|
+| GET | `/api/analytics/overview` | 10/min |
+| GET | `/api/backup` | - |
+| POST | `/api/backup` | 2/hour |
+| GET | `/health` | - |
 
 ---
 
-## 🐳 Docker Commands
+## Docker Commands
 
 ```bash
-# Build all images
-docker compose build
-
-# Start all services
-docker compose up -d
-
-# Stop all services
-docker compose down
-
-# View logs (all services)
-docker compose logs -f
-
-# View logs (specific service)
-docker compose logs -f backend
-
-# Restart a service
-docker compose restart backend
-
-# Check service status
-docker compose ps
+docker compose build           # Build all images
+docker compose up -d           # Start all services
+docker compose down            # Stop all services
+docker compose logs -f         # View all logs
+docker compose logs -f backend # View specific service logs
+docker compose restart backend # Restart a service
+docker compose ps              # Check status
+docker compose down -v         # Remove everything including volumes
 ```
 
 ---
 
-## 🛠️ Development
+## Development
 
 ### Frontend
-
 ```bash
 cd frontend
 npm install
-npm start          # Development server at http://localhost:3000
+npm start          # Dev server at http://localhost:3000
 npm run build      # Production build
 ```
 
 ### Backend
-
 ```bash
 cd backend
 pip install -r requirements.txt
-export FLASK_APP=app.py
-export FLASK_ENV=development
-flask run --port=5000
-```
-
-### FFmpeg Processor
-
-```bash
-cd ffmpeg
-pip install -r requirements.txt
-python processor.py
+export FLASK_DEBUG=true
+python app.py      # Dev server with hot reload
 ```
 
 ---
 
-## 🔒 Security
-
-- Password authentication required for all dashboard access
-- Session management with configurable timeout
-- Secure RTSP stream access (credentials in `.env`, not hardcoded)
-- CORS protection on API endpoints
-- Input validation on all API routes
-- **Change default credentials immediately**
-
----
-
-## 🐛 Troubleshooting
+## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
-| No video stream | Verify RTSP URL and camera accessibility |
-| High CPU usage | Reduce stream resolution or frame rate |
-| Disk filling up | Lower `RETENTION_DAYS` or increase threshold |
-| Port conflict | Change ports in `.env` and `docker-compose.yml` |
-| Container won't start | Check logs: `docker compose logs <service>` |
-| Audio trigger not working | Verify microphone/audio input on camera |
+| No video stream | Verify RTSP URL and network access |
+| High CPU usage | Reduce resolution or frame rate |
+| Disk filling up | Lower RETENTION_DAYS |
+| Port conflict | Change ports in .env |
+| Container won't start | Check: docker compose logs backend |
+| DB connection failed | Check: docker compose ps (db must be healthy) |
+| WebSocket not working | Verify nginx proxy config |
 
 ---
 
-## 🔄 Updates
+## Security
 
-```bash
-cd /path/to/rtsp-nvr-dashboard
-git pull origin main
-docker compose down
-docker compose build
-docker compose up -d
-```
+- JWT authentication with 24h token expiry
+- Role-based access control (admin/user/viewer)
+- PBKDF2-SHA256 password hashing
+- Per-endpoint rate limiting (Flask-Limiter)
+- CORS protection on all API routes
+- Input validation on all routes
+- Secrets in .env (chmod 600), never committed
+- Automated pg_dump backups
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
+2. Create a feature branch: git checkout -b feature/name
+3. Commit: git commit -m "Add feature"
+4. Push: git push origin feature/name
 5. Open a Pull Request
 
----
+## License
 
-## 📄 License
+MIT License
 
-MIT License — free to use, modify, and distribute.
+## Support
 
----
-
-## 📞 Support
-
-For issues or questions, please open an issue on GitHub:
-
-https://github.com/OneByJorah/rtsp-nvr-dashboard/issues
+Open an issue: https://github.com/OneByJorah/rtsp-nvr-dashboard/issues
 
 ---
 
-**Made with ❤️ by [OneByJorah](https://github.com/OneByJorah)**
+**Made with love by [OneByJorah](https://github.com/OneByJorah)**
