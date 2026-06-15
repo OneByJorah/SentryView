@@ -1,14 +1,14 @@
 {
   "name": "rtsp-nvr-dashboard",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "react-scripts": "5.0.1",
-    "axios": "^1.6.2",
-    "recharts": "^2.10.3",
-    "react-router-dom": "^6.20.0"
+    "axios": "^1.7.7",
+    "recharts": "^2.13.3",
+    "react-router-dom": "^6.28.0"
   },
   "scripts": {
     "start": "react-scripts start",
