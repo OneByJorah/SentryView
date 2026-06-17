@@ -47,8 +47,9 @@ CORS(app, supports_credentials=True)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'change-this-to-a-random-secret')
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY', 'jwt-secret-change-me')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=24)
-app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://admin:***@localhost:5432/rtsp_nvr')
-app.config['REDIS_URL'] = os.getenv('REDIS_URL', 'redis://localhost:***@app.teardown_appcontext
+app.config['DATABASE_URL'] = os.getenv('DATABASE_URL', 'postgresql://admin:admin@localhost:5432/rtsp_nvr')
+app.config['REDIS_URL'] = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
+
 def close_db(error):
     db = g.pop('db', None)
     if db is not None:
