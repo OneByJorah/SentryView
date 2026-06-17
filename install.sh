@@ -21,7 +21,7 @@ ERROR()  { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
 [ "$EUID" -eq 0 ] || ERROR "Run as root: sudo ./install.sh"
 
-INSTALL_DIR="/opt/rtsp-nvr-dashboard"
+INSTALL_DIR="/opt/SentryView"
 TARGET_USER="${SUDO_USER:-root}"
 
 LOG "RTSP NVR Dashboard v2.1 Installer"
@@ -68,7 +68,7 @@ if [ -d "$INSTALL_DIR/.git" ]; then
     cd "$INSTALL_DIR"
     git pull origin main 2>/dev/null || WARN "Git pull failed, using local files"
 else
-    git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git "$INSTALL_DIR" 2>/dev/null || \
+    git clone https://github.com/OneByJorah/SentryView.git "$INSTALL_DIR" 2>/dev/null || \
         ERROR "Failed to clone repository"
 fi
 SUCCESS "Repository ready at $INSTALL_DIR"
