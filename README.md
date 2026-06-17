@@ -4,7 +4,7 @@
 [![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev/)
 [![Flask](https://img.shields.io/badge/Flask-3.1-000000?logo=flask)](https://flask.palletsprojects.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-2.1.0-blue.svg)](https://github.com/OneByJorah/rtsp-nvr-dashboard)
+[![Version](https://img.shields.io/badge/Version-2.1.0-blue.svg)](https://github.com/OneByJorah/SentryView)
 [![Maintained by OneByJorah](https://img.shields.io/badge/Maintained%20by-OneByJorah-1E90FF?logo=github)](https://github.com/OneByJorah)
 
 ![RTSP NVR Dashboard Architecture](https://v3b.fal.media/files/b/0a9e59a6/3Cq6QvN0Qw5qZ7H7vJ0uK4yD9c0g8a.png)
@@ -145,8 +145,8 @@ flowchart TB
 
 ```bash
 # Clone the repository
-git clone https://github.com/OneByJorah/rtsp-nvr-dashboard.git
-cd rtsp-nvr-dashboard
+git clone https://github.com/OneByJorah/SentryView.git
+cd SentryView
 
 # Install dependencies
 pip install -r requirements.txt
@@ -322,7 +322,7 @@ MIT License — free to use, modify, and distribute.
 
 For issues or questions, please open an issue on GitHub:
 
-https://github.com/OneByJorah/rtsp-nvr-dashboard/issues
+https://github.com/OneByJorah/SentryView/issues
 
 ---
 
