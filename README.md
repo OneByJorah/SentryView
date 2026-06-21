@@ -1,6 +1,6 @@
-# SentryView (SentryView)
+# SentryView — RTSP NVR Dashboard
 
-**Version:** v0.1  
+**Version:** v1.0  
 **Status:** Active Development  
 **Repository:** https://github.com/OneByJorah/SentryView
 
@@ -24,49 +24,65 @@
 
 ## Overview
 
-RTSP camera NVR dashboard with web-based playback and live monitoring.
+SentryView is a web-based RTSP NVR (Network Video Recorder) dashboard for live monitoring, playback, and timeline review of IP cameras. It combines a React frontend with a Python/FFmpeg backend, and includes Proxmox deployment support.
+
+Designed for self-hosted surveillance setups where you want camera visibility without vendor lock-in.
 
 ---
 
 ## Architecture
 
-Client → Local service (`SentryView`) → data/processing modules → output/api layer.
-Secrets and environment configuration are managed via environment files with restrictive permissions.
+Client browser → React frontend (`frontend/`) → Nginx → FastAPI backend (`backend/app.py`) → FFmpeg processor (`ffmpeg/processor.py`) → RTSP streams.
+
+Additional capabilities:
+- Proxmox container bootstrap (`proxmox/install-ct.sh`)
+- Database init via `init-db.sql`
+- Config via `backend/config.py`
 
 ---
 
 ## Technology Stack
 
-|| Layer | Stack |
+| Layer | Stack |
 |---|---|
-| Runtime | Linux (Ubuntu 22.04+) |
-| Primary Stack | React / Node.js / RTSP |
+| Runtime | Linux (Ubuntu 22.04+, Docker, Proxmox) |
+| Frontend | React |
+| Backend | Python / FastAPI |
+| Media | FFmpeg (RTSP capture + processing) |
+| Reverse Proxy | Nginx (`frontend/nginx.conf`) |
+| Database | SQL (via `init-db.sql`) |
 | VCS | Git + GitHub (`github.com/OneByJorah/SentryView`) |
-| Dev Port | Localhost / systemd service |
 
 ---
 
 ## Features
 
-- Operational dashboard and monitoring (per repo).
-- Exportable data / reports where supported.
-- Extensible service-based design.
-- Dark-themed UI where applicable.
+- **Live monitoring**: multiple RTSP camera streams in one dashboard.
+- **Playback + timeline**: review recorded segments by time.
+- **Settings management**: stream and recording configuration UI.
+- **FFmpeg pipeline**: hardware-friendly transcoding and processing container.
+- **Proxmox-ready**: dedicated install script for container deployment.
+- **Docker Compose**: multi-service deploy with backend, frontend, and ffmpeg.
 
 ---
 
 ## Getting Started
 
 ```bash
-# 1. Clone the repository
+# 1. Clone
 git clone https://github.com/OneByJorah/SentryView.git
 cd SentryView
 
-# 2. Install dependencies
-# (see specific subproject docs)
+# 2. Environment
+cp .env.sample .env
 
-# 3. Start the service
-# (see Service Management below)
+# 3. Start with Docker Compose
+docker compose up -d
+
+# 4. Local frontend dev (optional)
+cd frontend
+npm install
+npm start
 ```
 
 ---
@@ -74,12 +90,15 @@ cd SentryView
 ## Service Management
 
 ```bash
-# Start the service (example)
-sudo systemctl start SentryView.service
-sudo systemctl enable SentryView.service
-```
+# Start stack
+docker compose up -d
 
-Access the service via your configured localhost port or reverse proxy.
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
 
 ---
 
@@ -87,24 +106,56 @@ Access the service via your configured localhost port or reverse proxy.
 
 ```
 SentryView/
-├── README.md
-├── (additional project files)
+├── frontend/
+│   ├── src/App.js, api.js, index.js
+│   ├── public/index.html
+│   ├── package.json
+│   ├── Dockerfile
+│   └── nginx.conf
+├── backend/
+│   ├── app.py
+│   ├── config.py
+│   ├── requirements.txt
+│   └── Dockerfile
+├── ffmpeg/
+│   ├── processor.py
+│   └── requirements.txt
+├── proxmox/
+│   └── install-ct.sh
+├── assets/
+│   ├── banner.svg
+│   ├── logo.svg
+│   ├── screenshot-dashboard.png
+│   ├── screenshot-settings.png
+│   ├── screenshot-stream.png
+│   └── screenshot-timeline.png
+├── init-db.sql
+├── docker-compose.yml
+└── README.md
 ```
 
 ---
 
 ## Screenshots
 
-All screenshots are live captures from the local dev instance.
+### Dashboard
+![Dashboard](assets/screenshot-dashboard.png)
 
-_(Screenshots will be added after build/run capture.)_
+### Stream
+![Stream](assets/screenshot-stream.png)
+
+### Timeline
+![Timeline](assets/screenshot-timeline.png)
+
+### Settings
+![Settings](assets/screenshot-settings.png)
 
 ---
 
 ## Contributing
 
 1. Create a feature branch off `main`.
-2. Follow the existing code style.
+2. Test RTSP playback end-to-end before submitting.
 3. Submit a PR with description and screenshots for UI changes.
 
 ---
