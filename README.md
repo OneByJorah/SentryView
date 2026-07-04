@@ -1,171 +1,81 @@
-# SentryView — RTSP NVR Dashboard
+<div align="center">
+  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white">
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+</div>
 
-**Version:** v1.0  
-**Status:** Active Development  
-**Repository:** https://github.com/OneByJorah/SentryView
+<br>
 
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Architecture](#architecture)
-- [Technology Stack](#technology-stack)
-- [Features](#features)
-- [Getting Started](#getting-started)
-- [Service Management](#service-management)
-- [Project Structure](#project-structure)
-- [Screenshots](#screenshots)
-- [Contributing](#contributing)
-- [License](#license)
-- [Author](#author)
-
----
-
-## Overview
-
-SentryView is a web-based RTSP NVR (Network Video Recorder) dashboard for live monitoring, playback, and timeline review of IP cameras. It combines a React frontend with a Python/FFmpeg backend, and includes Proxmox deployment support.
-
-Designed for self-hosted surveillance setups where you want camera visibility without vendor lock-in.
+<div align="center">
+  <h1>📹 SentryView</h1>
+  <p><strong>Web-Based RTSP NVR Dashboard</strong></p>
+  <p>Self-hosted surveillance — live monitoring, playback, and timeline review for IP cameras</p>
+  <p>
+    <a href="#-features">Features</a> •
+    <a href="#-quick-start">Quick Start</a> •
+    <a href="#-architecture">Architecture</a> •
+    <a href="#-stream-processing">Stream Processing</a>
+  </p>
+</div>
 
 ---
 
-## Architecture
+## ✨ Features
 
-Client browser → React frontend (`frontend/`) → Nginx → FastAPI backend (`backend/app.py`) → FFmpeg processor (`ffmpeg/processor.py`) → RTSP streams.
+- **Live Monitoring** — Real-time RTSP stream viewing from IP cameras
+- **Timeline Playback** — Review recorded footage with timeline scrubber
+- **Recording** — Automated recording of RTSP streams
+- **Vendor Agnostic** — Works with any RTSP-compatible IP camera
+- **React Frontend** — Modern reactive UI with video players
+- **FastAPI Backend** — High-performance async Python backend
+- **FFmpeg Processing** — Industry-standard stream handling
+- **Docker Deploy** — Complete containerized solution
 
-Additional capabilities:
-- Proxmox container bootstrap (`proxmox/install-ct.sh`)
-- Database init via `init-db.sql`
-- Config via `backend/config.py`
-
----
-
-## Technology Stack
-
-| Layer | Stack |
-|---|---|
-| Runtime | Linux (Ubuntu 22.04+, Docker, Proxmox) |
-| Frontend | React |
-| Backend | Python / FastAPI |
-| Media | FFmpeg (RTSP capture + processing) |
-| Reverse Proxy | Nginx (`frontend/nginx.conf`) |
-| Database | SQL (via `init-db.sql`) |
-| VCS | Git + GitHub (`github.com/OneByJorah/SentryView`) |
-
----
-
-## Features
-
-- **Live monitoring**: multiple RTSP camera streams in one dashboard.
-- **Playback + timeline**: review recorded segments by time.
-- **Settings management**: stream and recording configuration UI.
-- **FFmpeg pipeline**: hardware-friendly transcoding and processing container.
-- **Proxmox-ready**: dedicated install script for container deployment.
-- **Docker Compose**: multi-service deploy with backend, frontend, and ffmpeg.
-
----
-
-## Getting Started
+## 🚀 Quick Start
 
 ```bash
-# 1. Clone
 git clone https://github.com/OneByJorah/SentryView.git
 cd SentryView
-
-# 2. Environment
-cp .env.sample .env
-
-# 3. Start with Docker Compose
-docker compose up -d
-
-# 4. Local frontend dev (optional)
-cd frontend
-npm install
-npm start
+./install.sh
 ```
 
----
-
-## Service Management
-
+Or with Docker:
 ```bash
-# Start stack
-docker compose up -d
-
-# View logs
-docker compose logs -f
-
-# Stop
-docker compose down
+docker-compose up -d
 ```
 
----
-
-## Project Structure
+## 🏗️ Architecture
 
 ```
 SentryView/
-├── frontend/
-│   ├── src/App.js, api.js, index.js
-│   ├── public/index.html
-│   ├── package.json
-│   ├── Dockerfile
-│   └── nginx.conf
-├── backend/
-│   ├── app.py
-│   ├── config.py
-│   ├── requirements.txt
-│   └── Dockerfile
-├── ffmpeg/
-│   ├── processor.py
-│   └── requirements.txt
-├── proxmox/
-│   └── install-ct.sh
-├── assets/
-│   ├── banner.svg
-│   ├── logo.svg
-│   ├── screenshot-dashboard.png
-│   ├── screenshot-settings.png
-│   ├── screenshot-stream.png
-│   └── screenshot-timeline.png
-├── init-db.sql
-├── docker-compose.yml
-└── README.md
+├── frontend/                  # React SPA
+├── backend/                   # FastAPI server
+├── ffmpeg/                    # FFmpeg stream processing
+├── assets/                    # Static assets
+├── scripts/                   # Utility scripts
+├── proxmox/                   # Proxmox integration
+├── init-db.sql                # Database initialization
+├── Dockerfile.backend         # Backend container
+├── docker-compose.yml         # Full deployment
+└── install.sh                 # Installation script
 ```
 
----
+## 🔧 Stream Processing
 
-## Screenshots
+SentryView uses FFmpeg to:
+- Transcode RTSP streams for browser playback
+- Record segments for timeline review
+- Generate thumbnails and preview clips
+- Support multiple codec formats (H.264, H.265)
 
-### Dashboard
-![Dashboard](assets/screenshot-dashboard.png)
+## 📄 License
 
-### Stream
-![Stream](assets/screenshot-stream.png)
-
-### Timeline
-![Timeline](assets/screenshot-timeline.png)
-
-### Settings
-![Settings](assets/screenshot-settings.png)
+MIT © Jhonattan L. Jimenez
 
 ---
 
-## Contributing
-
-1. Create a feature branch off `main`.
-2. Test RTSP playback end-to-end before submitting.
-3. Submit a PR with description and screenshots for UI changes.
-
----
-
-## License
-
-MIT
-
----
-
-## Author
-
-Built by **Jhonattan L. Jimenez**.
+<div align="center">
+  <p>📹 Your cameras, self-hosted</p>
+  <p><a href="https://github.com/OneByJorah">@OneByJorah</a></p>
+</div>
