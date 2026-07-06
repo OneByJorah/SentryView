@@ -8,14 +8,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # ===== DATABASE =====
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://admin:admin@localhost:5432/rtsp_nvr")
+DATABASE_URL = os.getenv("DATABASE_URL", "")  # Must be set via environment variable
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
 # ===== AUTHENTICATION =====
-SECRET_KEY = os.getenv("SECRET_KEY", "your-super-secret-key-change-in-production")
+SECRET_KEY = os.getenv("SECRET_KEY", "")  # Must be set via environment variable
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRY_HOURS = os.getenv("JWT_EXPIRY_HOURS", "24")
-PASSWORD_SALT = os.getenv("PASSWORD_SALT", "password-salt-change-in-production")
+PASSWORD_SALT = os.getenv("PASSWORD_SALT", "")  # Must be set via environment variable
 
 # ===== NETWORKING =====
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
@@ -46,8 +46,8 @@ BACKUP_STORAGE_PATH = os.getenv("BACKUP_STORAGE_PATH", "/data/backups")
 
 # ===== MEDIA SERVER =====
 RTSP_PORT = int(os.getenv("RTSP_PORT", "8554"))
-RTSP_USERNAME = os.getenv("RTSP_USERNAME", "admin")
-RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "admin")
+RTSP_USERNAME = os.getenv("RTSP_USERNAME", "")  # Must be set via environment variable
+RTSP_PASSWORD = os.getenv("RTSP_PASSWORD", "")  # Must be set via environment variable
 
 # ===== STREAM SETTINGS =====
 MAX_STREAMS = int(os.getenv("MAX_STREAMS", "10"))

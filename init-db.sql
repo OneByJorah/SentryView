@@ -118,17 +118,12 @@ CREATE INDEX IF NOT EXISTS idx_analytics_user_date ON analytics_cache(user_id, s
 -- ============================================
 -- DEFAULT ADMIN USER
 -- ============================================
--- Password: admin (PBKDF2-SHA256 hash)
--- CHANGE THIS IN PRODUCTION!
-INSERT INTO users (username, password_hash, role, is_active)
-VALUES (
-    'admin',
-    -- PBKDF2-SHA256 of 'admin' with salt 'secret_salt' (100000 iterations)
-    'b2d1c3482e4a4d7e5a3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e3e',
-    'admin',
-    TRUE
-)
-ON CONFLICT (username) DO NOTHING;
+-- NOTE: No default admin user is created.
+-- Register your first admin via the API:
+--   POST /api/auth/register
+--   {"username": "admin", "password": "<strong-password>"}
+-- Then promote to admin via:
+--   UPDATE users SET role = 'admin' WHERE username = 'admin';
 
 -- ============================================
 -- AUTO-CLEANUP FUNCTION
