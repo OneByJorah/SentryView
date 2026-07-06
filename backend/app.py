@@ -22,11 +22,14 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, g, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import (
+    JWTManager,
     create_access_token,
     get_jwt_identity,
     jwt_required,
 )
-from flask_socketio import emit, join_room
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_socketio import SocketIO, emit, join_room
 
 # ===== LOGGING =====
 logging.basicConfig(
@@ -48,6 +51,22 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "jwt-secret-change-me
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24)
 app.config["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql://admin:admin@localhost:5432/rtsp_nvr")
 app.config["REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+# ===== EXTENSIONS =====
+jwt = JWTManager(app)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=app.config["REDIS_URL"],
+)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet", message_queue=app.config["REDIS_URL"])
+
+# ===== DATABASE =====
+def get_db():
+    if "db" not in g:
+        g.db = psycopg2.connect(app.config["DATABASE_URL"])
+    return g.db
 
 def close_db(error):
     db = g.pop("db", None)

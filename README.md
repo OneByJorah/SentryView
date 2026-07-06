@@ -1,6 +1,6 @@
 <div align="center">
   <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/Flask-000000?style=for-the-badge&logo=flask&logoColor=white">
   <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white">
   <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
 </div>
@@ -28,7 +28,7 @@
 - **Recording** — Automated recording of RTSP streams
 - **Vendor Agnostic** — Works with any RTSP-compatible IP camera
 - **React Frontend** — Modern reactive UI with video players
-- **FastAPI Backend** — High-performance async Python backend
+- **Flask Backend** — High-performance Python backend with WebSocket support
 - **FFmpeg Processing** — Industry-standard stream handling
 - **Docker Deploy** — Complete containerized solution
 
@@ -50,7 +50,7 @@ docker-compose up -d
 ```
 SentryView/
 ├── frontend/                  # React SPA
-├── backend/                   # FastAPI server
+├── backend/                   # Flask server
 ├── ffmpeg/                    # FFmpeg stream processing
 ├── assets/                    # Static assets
 ├── scripts/                   # Utility scripts

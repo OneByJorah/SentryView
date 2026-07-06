@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 # Configuration
-RTSP_URL = os.environ.get("RTSP_URL", "rtsp://admin:admin@192.168.1.10:554/stream")
+RTSP_URL = os.environ.get("RTSP_URL", "rtsp://camera:554/stream")
 AUDIO_THRESHOLD_DB = float(os.environ.get("AUDIO_THRESHOLD_DB", 30))
 RECORDING_RETENTION_DAYS = int(os.environ.get("RECORDING_RETENTION_DAYS", 7))
 MAX_RECORDINGS = int(os.environ.get("MAX_RECORDINGS", 10))
