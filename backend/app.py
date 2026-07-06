@@ -17,16 +17,20 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import psycopg2
+import psycopg2.extras
 import redis
 from apscheduler.schedulers.background import BackgroundScheduler
 from flask import Flask, g, jsonify, request, send_from_directory
 from flask_cors import CORS
 from flask_jwt_extended import (
+    JWTManager,
     create_access_token,
     get_jwt_identity,
     jwt_required,
 )
-from flask_socketio import emit, join_room
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_socketio import SocketIO, emit, join_room
 
 # ===== LOGGING =====
 logging.basicConfig(
@@ -43,29 +47,61 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__, static_folder="../frontend/build", static_url_path="")
 CORS(app, supports_credentials=True)
 
-app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", "change-this-to-a-random-secret")
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", "jwt-secret-change-me")
+app.config["SECRET_KEY"] = os.getenv("SECRET_KEY", os.urandom(64).hex())
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY", os.urandom(64).hex())
 app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=24)
-app.config["DATABASE_URL"] = os.getenv("DATABASE_URL", "postgresql://admin:admin@localhost:5432/rtsp_nvr")
+app.config["DATABASE_URL"] = os.getenv("DATABASE_URL", "")
 app.config["REDIS_URL"] = os.getenv("REDIS_URL", "redis://localhost:6379/0")
 
+# Initialize extensions
+jwt = JWTManager(app)
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri=app.config["REDIS_URL"],
+)
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="eventlet")
+
+# ===== DATABASE CONNECTION =====
+def get_db():
+    """Get database connection (creates one if not in g)."""
+    if "db" not in g:
+        db_url = app.config["DATABASE_URL"]
+        if not db_url:
+            logger.error("DATABASE_URL not configured")
+            raise RuntimeError("DATABASE_URL environment variable is required")
+        g.db = psycopg2.connect(db_url, cursor_factory=psycopg2.extras.RealDictCursor)
+        g.db.autocommit = False
+    return g.db
+
+
+@app.teardown_appcontext
 def close_db(error):
     db = g.pop("db", None)
     if db is not None:
+        if error:
+            db.rollback()
+        else:
+            db.commit()
         db.close()
+
 
 def get_redis():
     if "redis" not in g:
         g.redis = redis.Redis.from_url(app.config["REDIS_URL"], decode_responses=True)
     return g.redis
 
+
 # ===== AUTH HELPERS =====
 def hash_password(password):
     salt = app.config["SECRET_KEY"].encode()
     return hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100000).hex()
 
+
 def verify_password(password, hashed):
     return hmac.compare_digest(hash_password(password), hashed)
+
 
 # ===== AUTH ROUTES =====
 @app.route("/api/auth/login", methods=["POST"])
@@ -98,6 +134,7 @@ def login():
         logger.error(f"Login error: {e}")
         return jsonify({"error": "Authentication failed"}), 500
 
+
 @app.route("/api/auth/register", methods=["POST"])
 @limiter.limit("5 per minute")
 def register():
@@ -127,6 +164,7 @@ def register():
         logger.error(f"Registration error: {e}")
         return jsonify({"error": "Registration failed"}), 500
 
+
 @app.route("/api/auth/me", methods=["GET"])
 @jwt_required()
 def get_current_user():
@@ -146,6 +184,7 @@ def get_current_user():
     except Exception as e:
         logger.error(f"Get user error: {e}")
         return jsonify({"error": "Failed to get user info"}), 500
+
 
 @app.route("/api/auth/password", methods=["PUT"])
 @jwt_required()
@@ -175,10 +214,12 @@ def change_password():
         logger.error(f"Password change error: {e}")
         return jsonify({"error": "Failed to change password"}), 500
 
+
 @app.route("/api/auth/logout", methods=["POST"])
 @jwt_required()
 def logout():
     return jsonify({"message": "Logged out successfully"})
+
 
 # ===== STREAMS ROUTES =====
 @app.route("/api/streams", methods=["GET"])
@@ -194,10 +235,11 @@ def get_streams():
                 (user_id,),
             )
             streams = cur.fetchall()
-        return jsonify({"streams": [{"id": s["id"], "name": s["name"], "url": s["url"], "is_active": s["is_active"], "created_at": s["created_at"].isoformat() if s["created_at"] else None, "owner": s["owner"]} for s in streams]})
+        return jsonify({"streams": [dict(s) for s in streams]})
     except Exception as e:
         logger.error(f"Get streams error: {e}")
         return jsonify({"error": "Failed to get streams"}), 500
+
 
 @app.route("/api/streams", methods=["POST"])
 @jwt_required()
@@ -221,6 +263,7 @@ def add_stream():
     except Exception as e:
         logger.error(f"Add stream error: {e}")
         return jsonify({"error": "Failed to create stream"}), 500
+
 
 @app.route("/api/streams/<int:stream_id>", methods=["PUT"])
 @jwt_required()
@@ -262,6 +305,7 @@ def update_stream(stream_id):
         logger.error(f"Update stream error: {e}")
         return jsonify({"error": "Failed to update stream"}), 500
 
+
 @app.route("/api/streams/<int:stream_id>", methods=["DELETE"])
 @jwt_required()
 @limiter.limit("10 per minute")
@@ -280,6 +324,7 @@ def delete_stream(stream_id):
     except Exception as e:
         logger.error(f"Delete stream error: {e}")
         return jsonify({"error": "Failed to delete stream"}), 500
+
 
 # ===== RECORDINGS ROUTES =====
 @app.route("/api/recordings", methods=["GET"])
@@ -313,12 +358,13 @@ def get_recordings():
             cur.execute("SELECT COUNT(*) as cnt FROM recordings WHERE user_id = %s", (user_id,))
             count = cur.fetchone()["cnt"]
         return jsonify({
-            "recordings": [{"id": r["id"], "stream_id": r["stream_id"], "stream_name": r["stream_name"], "event_id": r["event_id"], "started_at": r["started_at"].isoformat() if r["started_at"] else None, "stopped_at": r["stopped_at"].isoformat() if r["stopped_at"] else None, "duration": r["duration"].total_seconds() if r["duration"] else 0, "file_path": r["file_path"], "file_size": r["file_size"], "is_active": r["is_active"]} for r in recordings],
+            "recordings": [dict(r) for r in recordings],
             "pagination": {"page": page, "per_page": per_page, "total": count, "pages": (count + per_page - 1) // per_page},
         })
     except Exception as e:
         logger.error(f"Get recordings error: {e}")
         return jsonify({"error": "Failed to get recordings"}), 500
+
 
 @app.route("/api/recordings", methods=["POST"])
 @jwt_required()
@@ -340,13 +386,14 @@ def start_recording():
                 return jsonify({"error": "Recording already active for this stream"}), 409
             cur.execute("INSERT INTO recordings (user_id, stream_id, started_at, is_active) VALUES (%s, %s, %s, %s) RETURNING id", (user_id, stream_id, datetime.now(), True))
             recording_id = cur.fetchone()["id"]
-            cur.execute("INSERT INTO events (user_id, stream_id, event_type, description, created_at) VALUES (%s, %s, %s, %s, %s)", (user_id, stream_id, "recording_started", "Recording " + str(recording_id) + " started", datetime.now()))
+            cur.execute("INSERT INTO events (user_id, stream_id, event_type, description, created_at) VALUES (%s, %s, %s, %s, %s)", (user_id, stream_id, "recording_started", f"Recording {recording_id} started", datetime.now()))
             db.commit()
         socketio.emit("recording_update", {"type": "recording_started", "recording_id": recording_id, "stream_id": stream_id, "timestamp": datetime.now().isoformat()})
         return jsonify({"message": "Recording started", "id": recording_id})
     except Exception as e:
         logger.error(f"Start recording error: {e}")
         return jsonify({"error": "Failed to start recording"}), 500
+
 
 @app.route("/api/recordings/<int:recording_id>", methods=["DELETE"])
 @jwt_required()
@@ -362,13 +409,14 @@ def stop_recording(recording_id):
                 return jsonify({"error": "Recording not found or already stopped"}), 404
             duration = datetime.now() - recording["started_at"]
             cur.execute("UPDATE recordings SET stopped_at = %s, duration = %s, is_active = FALSE WHERE id = %s", (datetime.now(), duration, recording_id))
-            cur.execute("INSERT INTO events (user_id, stream_id, event_type, description, created_at) VALUES (%s, %s, %s, %s, %s)", (user_id, recording["stream_id"], "recording_stopped", "Recording " + str(recording_id) + " stopped", datetime.now()))
+            cur.execute("INSERT INTO events (user_id, stream_id, event_type, description, created_at) VALUES (%s, %s, %s, %s, %s)", (user_id, recording["stream_id"], "recording_stopped", f"Recording {recording_id} stopped", datetime.now()))
             db.commit()
         socketio.emit("recording_update", {"type": "recording_stopped", "recording_id": recording_id, "duration": duration.total_seconds(), "timestamp": datetime.now().isoformat()})
         return jsonify({"message": "Recording stopped", "duration": duration.total_seconds()})
     except Exception as e:
         logger.error(f"Stop recording error: {e}")
         return jsonify({"error": "Failed to stop recording"}), 500
+
 
 # ===== EVENTS ROUTES =====
 @app.route("/api/events", methods=["GET"])
@@ -398,12 +446,13 @@ def get_events():
             cur.execute("SELECT COUNT(*) as cnt FROM events WHERE user_id = %s", (user_id,))
             count = cur.fetchone()["cnt"]
         return jsonify({
-            "events": [{"id": e["id"], "event_type": e["event_type"], "description": e["description"], "created_at": e["created_at"].isoformat() if e["created_at"] else None, "stream_id": e["stream_id"], "stream_name": e["stream_name"], "metadata": e["metadata"]} for e in events],
+            "events": [dict(e) for e in events],
             "pagination": {"page": page, "per_page": per_page, "total": count, "pages": (count + per_page - 1) // per_page},
         })
     except Exception as e:
         logger.error(f"Get events error: {e}")
         return jsonify({"error": "Failed to get events"}), 500
+
 
 @app.route("/api/events", methods=["POST"])
 @jwt_required()
@@ -430,6 +479,7 @@ def create_event():
         logger.error(f"Create event error: {e}")
         return jsonify({"error": "Failed to create event"}), 500
 
+
 # ===== SCHEDULES ROUTES =====
 @app.route("/api/schedules", methods=["GET"])
 @jwt_required()
@@ -441,10 +491,11 @@ def get_schedules():
         with db.cursor() as cur:
             cur.execute("SELECT s.id, s.name, s.stream_id, s.recording_type, s.cron_expression, s.start_time, s.end_time, s.is_active, s.created_at, st.name as stream_name FROM schedules s LEFT JOIN streams st ON s.stream_id = st.id WHERE s.user_id = %s ORDER BY s.created_at DESC", (user_id,))
             schedules = cur.fetchall()
-        return jsonify({"schedules": [{"id": s["id"], "name": s["name"], "stream_id": s["stream_id"], "stream_name": s["stream_name"], "recording_type": s["recording_type"], "cron_expression": s["cron_expression"], "start_time": str(s["start_time"]) if s["start_time"] else None, "end_time": str(s["end_time"]) if s["end_time"] else None, "is_active": s["is_active"], "created_at": s["created_at"].isoformat() if s["created_at"] else None} for s in schedules]})
+        return jsonify({"schedules": [dict(s) for s in schedules]})
     except Exception as e:
         logger.error(f"Get schedules error: {e}")
         return jsonify({"error": "Failed to get schedules"}), 500
+
 
 @app.route("/api/schedules", methods=["POST"])
 @jwt_required()
@@ -474,6 +525,7 @@ def create_schedule():
     except Exception as e:
         logger.error(f"Create schedule error: {e}")
         return jsonify({"error": "Failed to create schedule"}), 500
+
 
 @app.route("/api/schedules/<int:schedule_id>", methods=["PUT"])
 @jwt_required()
@@ -507,6 +559,7 @@ def update_schedule(schedule_id):
         logger.error(f"Update schedule error: {e}")
         return jsonify({"error": "Failed to update schedule"}), 500
 
+
 @app.route("/api/schedules/<int:schedule_id>", methods=["DELETE"])
 @jwt_required()
 @limiter.limit("10 per minute")
@@ -523,6 +576,7 @@ def delete_schedule(schedule_id):
     except Exception as e:
         logger.error(f"Delete schedule error: {e}")
         return jsonify({"error": "Failed to delete schedule"}), 500
+
 
 # ===== ANALYTICS ROUTES =====
 @app.route("/api/analytics/overview", methods=["GET"])
@@ -551,6 +605,7 @@ def get_analytics_overview():
         logger.error(f"Get analytics error: {e}")
         return jsonify({"error": "Failed to get analytics"}), 500
 
+
 # ===== BACKUP ROUTES =====
 @app.route("/api/backup", methods=["POST"])
 @jwt_required()
@@ -577,6 +632,7 @@ def create_backup():
         logger.error(f"Backup error: {e}")
         return jsonify({"error": "Backup failed"}), 500
 
+
 @app.route("/api/backup", methods=["GET"])
 @jwt_required()
 def list_backups():
@@ -588,14 +644,14 @@ def list_backups():
         backups.append({"filename": f.name, "size": f.stat().st_size, "created": datetime.fromtimestamp(f.stat().st_mtime).isoformat()})
     return jsonify({"backups": backups})
 
+
 # ===== HEALTH CHECK =====
 @app.route("/health", methods=["GET"])
 def health_check():
     status = {"status": "healthy", "timestamp": datetime.now().isoformat()}
     try:
         db = get_db()
-        with db.cursor() as cur:
-            cur.execute("SELECT 1")
+        db.cursor().execute("SELECT 1")
         status["database"] = "connected"
     except Exception as e:
         status["database"] = "error: " + str(e)
@@ -608,6 +664,7 @@ def health_check():
         status["redis"] = "error: " + str(e)
     status_code = 200 if status["status"] == "healthy" else 503
     return jsonify(status), status_code
+
 
 # ===== WEBSOCKET HANDLERS =====
 @socketio.on("connect")
@@ -631,6 +688,7 @@ def handle_event_update(data):
     event = data.get("event")
     emit("new_event", event, broadcast=True)
 
+
 # ===== BACKGROUND TASKS =====
 scheduler = BackgroundScheduler()
 
@@ -645,11 +703,12 @@ def cleanup_old_records():
             deleted_e = cur.rowcount
             conn.commit()
         conn.close()
-        logger.info("Cleanup: removed %d recordings, %d events", deleted_r, deleted_e)
+        logger.info(f"Cleanup: removed {deleted_r} recordings, {deleted_e} events")
     except Exception as e:
         logger.error(f"Cleanup error: {e}")
 
 scheduler.start()
+
 
 # ===== ERROR HANDLERS =====
 @app.errorhandler(429)
@@ -665,6 +724,7 @@ def handle_exception(e):
     logger.error(f"Unhandled exception: {e}")
     return jsonify({"error": "Internal server error"}), 500
 
+
 # ===== SERVE FRONTEND =====
 @app.route("/", defaults={"path": ""})
 @app.route("/<path:path>")
@@ -672,6 +732,7 @@ def serve_frontend(path):
     if path and Path(app.static_folder + "/" + path).exists():
         return send_from_directory(app.static_folder, path)
     return send_from_directory(app.static_folder, "index.html")
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 5000))

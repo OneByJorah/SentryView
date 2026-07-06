@@ -1,0 +1,53 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Secrets
+.env
+.env.*
+.secrets/
+certs/
+*.pem
+*.key
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# CI
+.github/
+
+# Docker
+Dockerfile*
+docker-compose*
+
+# Node (frontend)
+frontend/node_modules/
+frontend/build/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+venv/
+.venv/
+
+# Documentation
+README.md
+CONTRIBUTING.md
+SECURITY.md
+CODE_OF_CONDUCT.md
+AUDIT_REPORT.md
+ROADMAP.md
+
+# Installer
+install.sh

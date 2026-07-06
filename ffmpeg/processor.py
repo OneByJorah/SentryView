@@ -72,6 +72,7 @@ def cleanup_old_recordings():
 
 def cleanup_old_events():
     """Remove old events based on max count"""
+    global events
     if len(events) > MAX_RECORDINGS:
         events = events[-MAX_RECORDINGS:]
         

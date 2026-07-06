@@ -79,21 +79,21 @@ cd "$INSTALL_DIR"
 
 if [ ! -f .env ]; then
     # Generate secure random defaults
-    SECRET=*** rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -1)
-    JWT_SECRET=*** rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -1)
-    DB_PASS=*** rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p | head -1)
+    SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -c 64)
+    JWT_SECRET=$(openssl rand -hex 32 2>/dev/null || head -c 64 /dev/urandom | xxd -p | head -c 64)
+    DB_PASS=$(openssl rand -hex 16 2>/dev/null || head -c 32 /dev/urandom | xxd -p | head -c 32)
 
     cat > .env <<ENVEOF
 # RTSP NVR Dashboard - Auto-generated config
 # Generated: $(date -Iseconds)
 
 # Database
-DATABASE_URL=postgresql://admin:***@db:5432/rtsp_nvr
-POSTGRES_PASSWORD=***
+DATABASE_URL=postgresql://admin:${DB_PASS}@db:5432/rtsp_nvr
+POSTGRES_PASSWORD=${DB_PASS}
 
 # Backend
-SECRET_KEY=***
-JWT_SECRET_KEY=***
+SECRET_KEY=${SECRET}
+JWT_SECRET_KEY=${JWT_SECRET}
 BACKEND_URL=http://backend:5000
 
 # Redis
@@ -148,9 +148,7 @@ echo -e "  ${GREEN}Backend:${NC}   http://localhost:5000"
 echo -e "  ${GREEN}API Docs:${NC}  http://localhost:5000/api/docs"
 echo -e "  ${GREEN}Health:${NC}    http://localhost:5000/health"
 echo ""
-echo -e "  ${YELLOW}Default login:${NC} admin / admin"
-echo -e "  ${RED}Change the default password immediately!${NC}"
-echo ""
+echo -e "  ${YELLOW}First-time setup:${NC} Register a user at /api/auth/register"
 echo -e "  ${BLUE}Logs:${NC}     docker compose logs -f"
 echo -e "  ${BLUE}Stop:${NC}     docker compose down"
 echo -e "  ${BLUE}Restart:${NC}  docker compose restart"
