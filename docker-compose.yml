@@ -3,6 +3,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    image: jorahone/sentryview-frontend:latest
     container_name: rtsp-nvr-frontend
     ports:
       - "${FRONTEND_PORT:-3000}:80"
@@ -25,11 +26,12 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: jorahone/sentryview-backend:latest
     container_name: rtsp-nvr-backend
     ports:
       - "${BACKEND_PORT:-5000}:5000"
     environment:
-      - DATABASE_URL=postgresql://admin:${POSTGRES_PASSWORD:-secure_password_change_me}@db:5432/rtsp_nvr
+      - DATABASE_URL=postgresql://admin:***@db:5432/rtsp_nvr
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-change-this-to-a-random-secret}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret}
@@ -93,6 +95,7 @@ services:
     build:
       context: ./ffmpeg
       dockerfile: Dockerfile
+    image: jorahone/sentryview-ffmpeg:latest
     container_name: rtsp-nvr-ffmpeg
     environment:
       - INPUT_URL=${RTSP_URL:-rtsp://example.com/stream}

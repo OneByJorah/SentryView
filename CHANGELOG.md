@@ -2,7 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.1.1] - 2026-07-05
+## [2.1.1] - 2026-07-07
+
+### Added
+- Dockerfile improvements (backend, frontend, ffmpeg)
+- docker-compose.yml with healthchecks
+- .env.example with placeholder values
 
 ### Fixed
 
