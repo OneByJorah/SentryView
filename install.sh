@@ -99,10 +99,10 @@ BACKEND_URL=http://backend:5000
 # Redis
 REDIS_URL=redis://redis:6379
 
-# Tailscale (optional)
-TAILSCALE_API_KEY=
-TAILSCALE_TAILNET_ID=
-TAILSCALE_AUTH_KEY=
+# Mesh-VPN (optional)
+MESH_VPN_API_KEY=
+MESH_VPN_NETWORK_ID=
+MESH_VPN_AUTH_KEY=
 
 # Recording
 AUDIO_THRESHOLD_DB=70
