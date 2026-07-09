@@ -35,8 +35,8 @@ services:
       - REDIS_URL=redis://redis:6379
       - SECRET_KEY=${SECRET_KEY:-change-this-to-a-random-secret}
       - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret}
-      - TAILSCALE_API_KEY=${TAILSCALE_API_KEY:-}
-      - TAILSCALE_TAILNET_ID=${TAILSCALE_TAILNET_ID:-}
+      - MESH_VPN_API_KEY=${MESH_VPN_API_KEY:-}
+      - MESH_VPN_NETWORK_ID=${MESH_VPN_NETWORK_ID:-}
       - WEBSOCKET_ENABLED=true
       - LOG_LEVEL=INFO
     depends_on:

@@ -22,11 +22,11 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
 BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:5000")
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# Tailscale Support
-TAILSCALE_ENABLED = os.getenv("TAILSCALE_ENABLED", "false").lower() == "true"
-TAILSCALE_API_KEY = os.getenv("TAILSCALE_API_KEY", "")
-TAILSCALE_GROUP = os.getenv("TAILSCALE_GROUP", "rtsp-nvr")
-TAILSCALE_SUBNET_Routes = os.getenv("TAILSCALE_SUBNET_ROUTES", "")
+# Mesh-VPN Support
+MESH_VPN_ENABLED = os.getenv("MESH_VPN_ENABLED", "false").lower() == "true"
+MESH_VPN_API_KEY = os.getenv("MESH_VPN_API_KEY", "")
+MESH_VPN_GROUP = os.getenv("MESH_VPN_GROUP", "rtsp-nvr")
+MESH_VPN_SUBNET_Routes = os.getenv("MESH_VPN_SUBNET_ROUTES", "")
 
 # ===== CORS =====
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", FRONTEND_URL).split(",")

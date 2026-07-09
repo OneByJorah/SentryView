@@ -9,7 +9,7 @@ last_publish: null
 standards_version: "2.1"
 dependencies: []
 deploy_target: scratch
-tailscale_only: false
+mesh_vpn_only: false
 public_facing: false
 community_sla_hours: 48
 adoption_tracked: false
