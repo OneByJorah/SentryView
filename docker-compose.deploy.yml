@@ -1,0 +1,59 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rtsp-nvr-backend
+    ports:
+      - "5011:5000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@shared-postgres:5432/rtsp_nvr
+      - REDIS_URL=redis://shared-redis:6379
+      - SECRET_KEY=${SECRET_KEY:-change-this-to-a-random-secret}
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-change-this-jwt-secret}
+      - TAILSCALE_API_KEY=${TAILSCALE_API_KEY:-}
+      - TAILSCALE_TAILNET_ID=${TAILSCALE_TAILNET_ID:-}
+      - WEBSOCKET_ENABLED=true
+      - LOG_LEVEL=INFO
+    networks:
+      - rtsp-nvr-network
+      - shared-infrastructure_default
+    restart: unless-stopped
+    volumes:
+      - backend-logs:/var/log/rtsp-nvr/backend
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  ffmpeg:
+    build:
+      context: ./ffmpeg
+      dockerfile: Dockerfile
+    container_name: rtsp-nvr-ffmpeg
+    environment:
+      - INPUT_URL=${RTSP_URL:-rtsp://example.com/stream}
+      - OUTPUT_PATH=/output
+      - BACKEND_URL=http://backend:5000
+    volumes:
+      - rtsp-nvr-ffmpeg:/output:rw
+    networks:
+      - rtsp-nvr-network
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+networks:
+  rtsp-nvr-network:
+    driver: bridge
+    name: rtsp-nvr-network
+  shared-infrastructure_default:
+    external: true
+
+volumes:
+  rtsp-nvr-ffmpeg:
+    name: rtsp-nvr-ffmpeg
+  backend-logs:
+    name: rtsp-nvr-backend-logs

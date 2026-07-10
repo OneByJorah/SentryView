@@ -653,7 +653,7 @@ def handle_event_update(data):
 # ===== BACKGROUND TASKS =====
 scheduler = BackgroundScheduler()
 
-@scheduler.job(id="cleanup_old_records", trigger="cron", hour=2, minute=0)
+@scheduler.scheduled_job(id="cleanup_old_records", trigger="cron", hour=2, minute=0)
 def cleanup_old_records():
     try:
         conn = psycopg2.connect(app.config["DATABASE_URL"])
