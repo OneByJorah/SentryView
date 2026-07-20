@@ -3,7 +3,7 @@ import { api } from '../api';
 
 const Settings = () => {
   const [activeTab, setActiveTab] = useState('general');
-  const [config, setConfig] = useState({ audioThreshold: 70, retentionDays: 7, username: '', password: '', mesh-vpnApiKey: '' });
+  const [config, setConfig] = useState({ audioThreshold: 70, retentionDays: 7, username: '', password: '', meshVpnApiKey: '' });
   const [loading, setLoading] = useState(false);
   const [streams, setStreams] = useState([]);
   const [schedules, setSchedules] = useState([]);

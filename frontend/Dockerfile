@@ -6,9 +6,9 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests
-COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+# Copy dependency manifest
+COPY package.json ./
+RUN npm install --include=dev
 
 # Copy source and build
 COPY . .
@@ -25,9 +25,13 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Create non-root user
 RUN addgroup --system --gid 1001 sentryview && \
-    adduser --system --uid 1001 --ingroup sentryview --no-create-home sentryview && \
-    chown -R sentryview:sentryview /usr/share/nginx/html /var/cache/nginx /var/run && \
-    chmod -R 755 /usr/share/nginx/html
+    adduser --system --uid 1001 --ingroup sentryview --no-create-home sentryview
+
+# Allow non-root nginx: writable pid path + cache/log dirs
+RUN sed -i 's#pid.*;#pid /tmp/nginx.pid;#' /etc/nginx/nginx.conf && \
+    mkdir -p /var/cache/nginx /var/log/nginx /run /tmp && \
+    chown -R sentryview:sentryview /usr/share/nginx/html /var/cache/nginx /var/log/nginx /run /tmp && \
+    chmod -R 755 /usr/share/nginx/html /var/cache/nginx /var/log/nginx /run
 
 USER sentryview
 

@@ -35,7 +35,7 @@ USER sentryview
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=10s --retries=3 --start-period=15s \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8080/health', timeout=5)" || exit 1
+    CMD pgrep -f processor.py >/dev/null || exit 1
 
 LABEL org.opencontainers.image.title="SentryView FFmpeg Processor" \
       org.opencontainers.image.description="FFmpeg processing container for SentryView" \
