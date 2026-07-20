@@ -75,7 +75,7 @@ SentryView uses FFmpeg to:
 
 ## 📄 License
 
-MIT © Jhonattan L. Jimenez
+MIT © Jhonattan L. Jimenez / JorahOne LLC
 
 ---
 
