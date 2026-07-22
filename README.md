@@ -1,68 +1,153 @@
-# SentryView
+<div align="center">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
+  <img src="https://img.shields.io/badge/React-61DAFB?style=for-the-badge&logo=react&logoColor=black">
+  <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white">
+  <img src="https://img.shields.io/badge/license-MIT-blue?style=for-the-badge">
+  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
+</div>
 
-Self-hosted RTSP NVR dashboard — live monitoring, recording, and timeline review for IP cameras (Flask + React).
+<br>
 
-![status](https://img.shields.io/badge/status-active-FFB300?style=flat-square)
-![language](https://img.shields.io/badge/python+react-0d0d0c?style=flat-square)
-![license](https://img.shields.io/badge/license-MIT-FFB300?style=flat-square)
+<div align="center">
+  <h1>SentryView</h1>
+  <p><strong>Self-Hosted RTSP NVR Dashboard</strong></p>
+  <p>Live monitoring, recording, and timeline review for IP cameras.</p>
+  <p>
+    <a href="#features">Features</a> •
+    <a href="#quick-start">Quick Start</a> •
+    <a href="#architecture">Architecture</a> •
+    <a href="#contributing">Contributing</a>
+  </p>
+</div>
 
-## Overview
+---
 
-SentryView is a self-hosted Network Video Recorder dashboard for IP cameras. It provides live RTSP stream monitoring, automated recording, and timeline-based playback through a modern React frontend backed by a FastAPI async Python server. Works with any RTSP-compatible camera — no vendor lock-in.
+## Screenshot
+
+![SentryView Dashboard](docs/screenshot.png)
+*RTSP NVR dashboard with live camera feeds and timeline playback.*
 
 ## Features
 
-- Live RTSP stream viewing from multiple IP cameras simultaneously
-- Timeline playback with scrubber for reviewing recorded footage
-- Automated recording of RTSP streams to local storage
-- Vendor-agnostic — works with any RTSP-compatible IP camera
-- React SPA frontend with responsive design
-- FastAPI async Python backend for high-performance stream handling
-- FFmpeg-based stream processing (industry standard)
-- Docker Compose deployment with health checks
-- Proxmox LXC deployment scripts included
+- **Live Monitoring** — Real-time RTSP stream viewing with low-latency playback.
+- **Recording** — Automated and on-demand camera recording with FFmpeg.
+- **Timeline Review** — Scrub through recorded footage with timeline navigation.
+- **Multi-Camera** — Support for unlimited IP cameras via RTSP.
+- **Motion Detection** — Configurable motion detection zones and alerts.
+- **Storage Management** — Disk usage monitoring and retention policies.
+- **React Dashboard** — Modern, responsive web interface.
+- **FastAPI Backend** — Async Python backend with WebSocket updates.
 
-## Architecture / Tech Stack
-
-- **Frontend**: React SPA, video players
-- **Backend**: FastAPI (Python async)
-- **Stream Processing**: FFmpeg
-- **Database**: SQLite (init-db.sql)
-- **Deployment**: Docker Compose, Proxmox LXC
-- **Network**: Isolated Docker network for camera traffic
-
-## Installation
+## Quick Start
 
 ```bash
 git clone https://github.com/OneByJorah/SentryView.git
 cd SentryView
 
-# Option 1: Automated install
-./install.sh
-
-# Option 2: Docker Compose
+cp .env.example .env  # Configure camera streams
 docker compose up -d
 ```
 
-## Usage
+Open **http://localhost:8000** in your browser.
 
-1. Add your RTSP camera streams via the dashboard or API
-2. Open the web UI at `http://localhost:3000`
-3. Monitor live feeds, record, and review timeline footage
+### Adding Cameras
 
-## Configuration
+1. Navigate to **Settings → Cameras**
+2. Click **Add Camera**
+3. Enter RTSP URL: `rtsp://username:password@camera-ip:554/stream`
+4. Configure recording settings
+5. Save and view live feed
+
+## Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `FRONTEND_PORT` | `3000` | Web UI port |
-| `BACKEND_PORT` | `5000` | API server port |
-| `BACKEND_URL` | `http://backend:5000` | Internal API URL |
+| `PORT` | `8000` | Backend API port |
+| `DATABASE_URL` | `sqlite:///sentryview.db` | Database connection string |
+| `RECORDINGS_DIR` | `./recordings` | Storage directory for recordings |
+| `MAX_STORAGE_GB` | `100` | Maximum storage allocation |
+| `RETENTION_DAYS` | `30` | Days to keep recordings |
+| `MOTION_THRESHOLD` | `30` | Motion detection sensitivity |
 
-See `.env.example` for full options.
+## Architecture
+
+```
+Browser (React) ──API/WebSocket──▶ FastAPI Backend ──▶ SQLite
+                                        │
+                                        ├──▶ FFmpeg ──▶ RTSP Cameras
+                                        ├──▶ Recording Engine
+                                        ├──▶ Motion Detection
+                                        └──▶ Storage Manager
+```
+
+## Tech Stack
+
+- **Backend**: FastAPI (Python 3.10+), SQLAlchemy
+- **Frontend**: React 18 (TypeScript)
+- **Video**: FFmpeg for RTSP stream processing
+- **Database**: SQLite (default), PostgreSQL (production)
+- **Deployment**: Docker Compose
+
+## Supported Camera Types
+
+| Protocol | Compatibility |
+|----------|---------------|
+| **RTSP** | All ONVIF-compatible cameras |
+| **RTMP** | Most IP cameras and DVRs |
+| **HLS** | Streaming services |
+
+## Project Structure
+
+```
+SentryView/
+├── backend/
+│   ├── main.py              # FastAPI application
+│   ├── routers/
+│   │   ├── cameras.py       # Camera management
+│   │   ├── streams.py       # Live stream endpoints
+│   │   ├── recordings.py    # Recording management
+│   │   └── timeline.py      # Timeline navigation
+│   ├── services/
+│   │   ├── ffmpeg_service.py    # FFmpeg wrapper
+│   │   ├── motion_detect.py     # Motion detection
+│   │   └── storage_manager.py   # Disk management
+│   └── models.py            # Database models
+├── frontend/
+│   ├── src/
+│   │   ├── components/      # React components
+│   │   └── pages/           # Dashboard pages
+│   └── package.json
+├── recordings/              # Video storage (gitignored)
+├── docker-compose.yml       # Docker deployment
+└── .env.example             # Configuration template
+```
+
+## API Endpoints
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/cameras` | GET/POST | Manage cameras |
+| `/api/cameras/{id}/stream` | GET | Get live RTSP stream |
+| `/api/recordings` | GET | List recordings |
+| `/api/recordings/{id}/download` | GET | Download recording |
+| `/api/timeline/{camera_id}` | GET | Get timeline data |
+| `/api/storage` | GET | Storage usage stats |
+
+## Contributing
+
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
+
+## Security
+
+For security concerns, see [SECURITY.md](SECURITY.md). Please report vulnerabilities to **info@jorahone.com** — do not use public issues.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT © Jhonattan L. Jimenez
 
 ---
-Part of the JorahOne / J1 ecosystem — self-hosted surveillance for VIDE OIT infrastructure.
+
+<div align="center">
+  <p>Self-hosted NVR for IP camera monitoring.</p>
+  <p><a href="https://github.com/OneByJorah">@OneByJorah</a></p>
+</div>
