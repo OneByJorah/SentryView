@@ -1,85 +1,68 @@
-<div align="center">
-  <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB">
-  <img src="https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white">
-  <img src="https://img.shields.io/badge/FFmpeg-007808?style=for-the-badge&logo=ffmpeg&logoColor=white">
-  <img src="https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white">
-</div>
+# SentryView
 
-<br>
+Self-hosted RTSP NVR dashboard — live monitoring, recording, and timeline review for IP cameras (Flask + React).
 
-<div align="center">
-  <h1>📹 SentryView</h1>
-  <p><strong>Web-Based RTSP NVR Dashboard</strong></p>
-  <p>Self-hosted surveillance — live monitoring, playback, and timeline review for IP cameras</p>
-  <p>
-    <a href="#-features">Features</a> •
-    <a href="#-quick-start">Quick Start</a> •
-    <a href="#-architecture">Architecture</a> •
-    <a href="#-stream-processing">Stream Processing</a>
-  </p>
-</div>
+![status](https://img.shields.io/badge/status-active-FFB300?style=flat-square)
+![language](https://img.shields.io/badge/python+react-0d0d0c?style=flat-square)
+![license](https://img.shields.io/badge/license-MIT-FFB300?style=flat-square)
 
----
+## Overview
 
-## 📸 Screenshot
+SentryView is a self-hosted Network Video Recorder dashboard for IP cameras. It provides live RTSP stream monitoring, automated recording, and timeline-based playback through a modern React frontend backed by a FastAPI async Python server. Works with any RTSP-compatible camera — no vendor lock-in.
 
-This is a CLI/backend-only tool. No screenshots available.
+## Features
 
-## ✨ Features
+- Live RTSP stream viewing from multiple IP cameras simultaneously
+- Timeline playback with scrubber for reviewing recorded footage
+- Automated recording of RTSP streams to local storage
+- Vendor-agnostic — works with any RTSP-compatible IP camera
+- React SPA frontend with responsive design
+- FastAPI async Python backend for high-performance stream handling
+- FFmpeg-based stream processing (industry standard)
+- Docker Compose deployment with health checks
+- Proxmox LXC deployment scripts included
 
-- **Live Monitoring** — Real-time RTSP stream viewing from IP cameras
-- **Timeline Playback** — Review recorded footage with timeline scrubber
-- **Recording** — Automated recording of RTSP streams
-- **Vendor Agnostic** — Works with any RTSP-compatible IP camera
-- **React Frontend** — Modern reactive UI with video players
-- **FastAPI Backend** — High-performance async Python backend
-- **FFmpeg Processing** — Industry-standard stream handling
-- **Docker Deploy** — Complete containerized solution
+## Architecture / Tech Stack
 
-## 🚀 Quick Start
+- **Frontend**: React SPA, video players
+- **Backend**: FastAPI (Python async)
+- **Stream Processing**: FFmpeg
+- **Database**: SQLite (init-db.sql)
+- **Deployment**: Docker Compose, Proxmox LXC
+- **Network**: Isolated Docker network for camera traffic
+
+## Installation
 
 ```bash
 git clone https://github.com/OneByJorah/SentryView.git
 cd SentryView
+
+# Option 1: Automated install
 ./install.sh
+
+# Option 2: Docker Compose
+docker compose up -d
 ```
 
-Or with Docker:
-```bash
-docker-compose up -d
-```
+## Usage
 
-## 🏗️ Architecture
+1. Add your RTSP camera streams via the dashboard or API
+2. Open the web UI at `http://localhost:3000`
+3. Monitor live feeds, record, and review timeline footage
 
-```
-SentryView/
-├── frontend/                  # React SPA
-├── backend/                   # FastAPI server
-├── ffmpeg/                    # FFmpeg stream processing
-├── assets/                    # Static assets
-├── scripts/                   # Utility scripts
-├── proxmox/                   # Proxmox integration
-├── init-db.sql                # Database initialization
-├── Dockerfile.backend         # Backend container
-├── docker-compose.yml         # Full deployment
-└── install.sh                 # Installation script
-```
+## Configuration
 
-## 🔧 Stream Processing
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FRONTEND_PORT` | `3000` | Web UI port |
+| `BACKEND_PORT` | `5000` | API server port |
+| `BACKEND_URL` | `http://backend:5000` | Internal API URL |
 
-SentryView uses FFmpeg to:
-- Transcode RTSP streams for browser playback
-- Record segments for timeline review
-- Generate thumbnails and preview clips
-- Support multiple codec formats (H.264, H.265)
+See `.env.example` for full options.
 
-## 📄 License
+## License
 
-MIT © Jhonattan L. Jimenez
+MIT — see [LICENSE](LICENSE).
 
 ---
-
-<div align="center">
-  <p>📹 Your cameras, self-hosted</p>
-  <p><a href="https://github.com/OneByJorah">@OneByJorah</a></p>
-</div>
+Part of the JorahOne / J1 ecosystem — self-hosted surveillance for VIDE OIT infrastructure.
