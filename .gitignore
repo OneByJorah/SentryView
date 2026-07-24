@@ -26,3 +26,6 @@ logs/
 # Database
 *.db
 *.sqlite
+
+# OneByJorah portfolio tooling
+.venv-screenshot/
