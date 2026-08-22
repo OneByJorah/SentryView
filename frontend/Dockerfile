@@ -1,16 +1,16 @@
 # =============================================================================
-# SentryView Frontend — React (CRA) → nginx
+# SentryView Frontend — React (Vite) → nginx
 # Tag convention: jorahone/sentryview-frontend:latest
 # =============================================================================
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency manifests
-COPY package.json package-lock.json ./
-RUN npm ci --include=dev
+# Copy dependency manifest and install
+COPY package.json ./
+RUN npm install
 
-# Copy source and build
+# Copy source and build (Vite outputs to /app/build, per vite.config.js)
 COPY . .
 RUN npm run build
 
